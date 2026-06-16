@@ -139,20 +139,25 @@ body.is-admin #ytFrame{pointer-events:auto}
 
 .obs-btn { background: none; border: 1px solid rgba(255,255,255,0.07); color: var(--muted); padding: .3rem .6rem; border-radius: 6px; cursor: pointer; transition: .2s; font-size: 0.75rem; font-family: 'Space Mono'; display: flex; align-items: center; gap: 5px; }
 .obs-btn:hover { color: #fff; border-color: rgba(255,255,255,0.3); background: rgba(255,255,255,0.05); }
-.obs-panel { position: fixed; top: calc(var(--hh) + 5px); right: 1.5rem; background: var(--surface); border: 1px solid var(--border); padding: 12px; border-radius: 8px; display: none; width: 240px; box-shadow: 0 8px 24px rgba(0,0,0,0.8); z-index: 400; flex-direction: column; gap: 8px; }
+.obs-panel { position: absolute; top: calc(var(--hh) + 5px); right: 1.5rem; background: var(--surface); border: 1px solid var(--border); padding: 12px; border-radius: 8px; display: none; width: 240px; box-shadow: 0 8px 24px rgba(0,0,0,0.8); z-index: 400; flex-direction: column; gap: 8px; }
 .obs-panel.show { display: flex; animation: fdIn 0.2s ease; }
 .obs-panel h3 { font-size: 0.8rem; color: #00aaff; font-family: 'Space Mono'; margin-bottom: 2px; }
 .obs-panel p { font-size: 0.65rem; color: var(--muted); line-height: 1.4; font-family: 'Space Mono'; }
 .obs-input { background: var(--bg); border: 1px solid var(--border); color: var(--muted); font-family: 'Space Mono'; font-size: 0.6rem; padding: 6px; width: 100%; border-radius: 4px; text-align: center; }
 
-body.obs-active { background: transparent !important; overflow: hidden; }
-body.obs-active::after { display: none; }
-body.obs-active header, body.obs-active .qside, body.obs-active .apanel, body.obs-active #publicControls, body.obs-active .toasts { display: none !important; }
-body.obs-active main { grid-template-columns: 1fr; height: 100vh; min-height: 100vh; }
-body.obs-active .theater { border: none; padding: 0; justify-content: center; background: transparent; }
-body.obs-active .player-wrap { border-radius: 0; border: none; }
-body.obs-active .npbar { position: absolute; bottom: 20px; left: 20px; background: rgba(10,10,15,0.9); padding: 10px 20px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05); }
-
+body.obs-active { background: #000 !important; overflow: hidden; }
+body.obs-active > *:not(main) { display: none !important; }
+body.obs-active main > *:not(.theater) { display: none !important; }
+body.obs-active .theater > *:not(.theater-stage) { display: none !important; }
+body.obs-active .theater-stage > *:not(.player-wrap) { display: none !important; }
+body.obs-active main, body.obs-active .theater, body.obs-active .theater-stage, body.obs-active .player-wrap { 
+    display: block !important; padding: 0 !important; margin: 0 !important; border: none !important; 
+    position: static !important; width: 100vw !important; height: 100vh !important; border-radius: 0 !important; background: #000 !important; 
+}
+body.obs-active #ytFrame, body.obs-active #rawAudio { 
+    width: 100vw !important; height: 100vh !important; display: block !important; z-index: 999999 !important; pointer-events: auto !important;
+}
+  
 @media(max-width:760px){main{grid-template-columns:1fr}.qside{height:auto;position:static;max-height:420px}}
 body::after{content:'';position:fixed;inset:0;opacity:.02;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");pointer-events:none;z-index:9998}
 </style>
@@ -371,18 +376,25 @@ function sanitizeColor(c) {
 
 function checkTwitchAuth() {
     const urlParams = new URLSearchParams(window.location.search);
-  
+    
+    // --- BYPASS PARA O OBS ---
     if(urlParams.get('obs') === '1') {
-        myName = 'OBS_Viewer_' + Math.floor(Math.random() * 1000);
-        clientSynced = true;
+        document.body.classList.add('obs-active');
+        myName = 'OBS_Live_' + Math.floor(Math.random() * 1000);
         
-
+        // Força o sistema a achar que já clicou em sincronizar
+        clientSynced = true; 
+        
+        // DELETA as telas de bloqueio para o YouTube poder tocar
         const loginOvl = document.getElementById('twitchLoginOvl');
-        if (loginOvl) loginOvl.classList.remove('open');
+        if (loginOvl) loginOvl.remove();
+        const eover = document.getElementById('eover');
+        if (eover) eover.remove();
         
         assignRolesAndStart();
         return; 
     }
+    // -------------------------
 
     const hash = window.location.hash;
     const storedToken = localStorage.getItem('cimpTwitchToken');
