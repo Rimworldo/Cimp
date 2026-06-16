@@ -732,6 +732,16 @@ function startAsClient() {
         clientPeer = null; 
     }
     
+    if (!twitchWs || twitchWs.readyState !== WebSocket.OPEN) {
+        console.log('[DEBUG] startAsClient: conectando ao Twitch para receber comandos.');
+        toast('Conectando ao Twitch chat...', '');
+        logChat('SISTEMA', '🔗 Conectando ao Twitch chat como cliente...', true, '#ffdd57');
+        connectTwitch();
+    } else {
+        console.log('[DEBUG] Twitch WebSocket já aberto para cliente.');
+        logChat('SISTEMA', '✅ Twitch chat já conectado.', true, '#5de89a');
+    }
+    
     clientPeer = new Peer({ debug: 0, config: { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] } });
     
     clientPeer.on('open', function() { 
@@ -739,7 +749,8 @@ function startAsClient() {
         setupClient(); 
     });
     
-    clientPeer.on('error', function() { 
+    clientPeer.on('error', function(err) { 
+        console.error('[DEBUG] clientPeer error', err);
         p2pInitializing = false; 
         if (!isHost) setTimeout(startAsClient, 4000); 
     });
@@ -1381,17 +1392,19 @@ function connectTwitch() {
   
   twitchWs.onopen = function() { 
     console.log('[DEBUG] WebSocket aberto. Enviando credenciais...');
-    logChat('SISTEMA', '✅ WebSocket conectado. Autenticando...', true, '#5de89a');
+    logChat('SISTEMA', '✅ WebSocket conectado. Enviando credenciais...', true, '#5de89a');
     twitchWs.send(`PASS oauth:gwv6wwecnp6pii9otfnv3y3klg46u6`); 
     twitchWs.send(`NICK jonhcreator2`); 
     twitchWs.send(`JOIN #${CHANNEL}`); 
     twitchWs.send('CAP REQ :twitch.tv/tags'); 
+    twitchWs.send('CAP REQ :twitch.tv/commands');
     console.log(`[DEBUG] Enviado: PASS, NICK jonhcreator2, JOIN #${CHANNEL}`);
   };
   
   twitchWs.onerror = function(err) {
-    console.error('[DEBUG ERROR]', err);
-    logChat('SISTEMA', `❌ Erro Twitch: ${err.message || 'Conexão falhou'}`, true, '#ff7070');
+    console.error('[DEBUG ERROR] Twitch websocket error', err);
+    logChat('SISTEMA', `❌ Erro Twitch websocket. Veja console.`, true, '#ff7070');
+    twitchWs = null;
   };
   
   twitchWs.onmessage = async function(e) {
@@ -1515,12 +1528,14 @@ function connectTwitch() {
     }
   };
   
-  twitchWs.onclose = function() { 
-    console.log('[DEBUG] WebSocket fechado. Reconectando em 5s...');
-    logChat('SISTEMA', '🔄 Desconectado. Reconectando...', true, '#ff7070');
+  twitchWs.onclose = function(event) { 
+    console.log('[DEBUG] WebSocket fechado. Reconectando em 5s...', event);
+    logChat('SISTEMA', `🔴 Twitch chat desconectado (code ${event.code}). Reconectando em 5s...`, true, '#ff7070');
+    twitchWs = null;
     setTimeout(connectTwitch, 5000); 
   };
 }
+
   
 function playPing() {
   if(!config.bpm) return;
