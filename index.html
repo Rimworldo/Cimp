@@ -370,6 +370,20 @@ function sanitizeColor(c) {
 }
 
 function checkTwitchAuth() {
+    const urlParams = new URLSearchParams(window.location.search);
+  
+    if(urlParams.get('obs') === '1') {
+        myName = 'OBS_Viewer_' + Math.floor(Math.random() * 1000);
+        clientSynced = true;
+        
+
+        const loginOvl = document.getElementById('twitchLoginOvl');
+        if (loginOvl) loginOvl.classList.remove('open');
+        
+        assignRolesAndStart();
+        return; 
+    }
+
     const hash = window.location.hash;
     const storedToken = localStorage.getItem('cimpTwitchToken');
 
@@ -385,7 +399,7 @@ function checkTwitchAuth() {
         document.getElementById('twitchLoginOvl').classList.add('open');
     }
 }
-
+  
 async function fetchTwitchUser(token) {
     document.getElementById('twitchLoginOvl').classList.add('open');
     document.querySelector('#twitchLoginOvl h2').textContent = "Conectando...";
