@@ -1378,17 +1378,12 @@ function connectTwitch() {
       messagePart = raw.substring(tagEnd+1); 
     }
     
-    const regex = /^:([^!]+)!([^@]+)@[^ ]+ PRIVMSG #([^ ]+) :(.*)$/;
-    const match = messagePart.match(regex);
+    // SIMPLIFICADO - igual ao Simp
+    const m = messagePart.match(/:(\w+)!\w+@\w+\.tmi\.twitch\.tv PRIVMSG #\w+ :(.*)/);
+    if(!m) return;
     
-    if(!match) return;
-    
-    const twitchUser = match[1].toLowerCase();
-    const channel = match[3].toLowerCase();
-    const msg = match[4].trim();
-    
-    if(channel !== CHANNEL.toLowerCase()) return;
-    
+    const twitchUser = m[1].toLowerCase();
+    const msg = m[2].trim();
     const rawColor = tags.color && tags.color.startsWith('#') ? tags.color : null; 
     const color = rawColor || '#6495ed'; 
     const isMod = tags.mod === '1' || (tags.badges && tags.badges.includes('moderator'));
@@ -1405,12 +1400,52 @@ function connectTwitch() {
       localStorage.setItem('aimpTwitchUsers', JSON.stringify(Array.from(twitchUsers))); 
     }
     
-    const cmdPrefix = CMD.toLowerCase();
-    if(msg.toLowerCase().startsWith(cmdPrefix)){
-      const cmdContent = msg.slice(cmdPrefix.length).trim();
+    // Verifica se é comando
+    if(msg.toLowerCase().startsWith(CMD.toLowerCase() + ' ') || msg.toLowerCase().startsWith(CMD.toLowerCase())) {
+      const cmdContent = msg.slice(CMD.length).trim();
       const parts = cmdContent.split(' ');
       const action = parts[0].toLowerCase();
       const arg = parts.slice(1).join(' ');
+      
+      if(action === 'skip') { 
+        if(isMod || isBroadcaster || getUserPoints(twitchUser) >= 50) { 
+          if(!isMod && !isBroadcaster) spendPoints(twitchUser, 50); 
+          if(isHost) {
+            nextVideo();
+            logAdminAction(twitchUser, "usou skip via comando");
+          } else {
+            sendCmd('skip', {user: twitchUser});
+          }
+        } 
+        return; 
+      }
+      
+      if(action === 'trocar') { 
+        if(isMod || isBroadcaster || getUserPoints(twitchUser) >= 50) { 
+          if(!isMod && !isBroadcaster) spendPoints(twitchUser, 50); 
+          if(isHost) { 
+            queue = queue.sort(() => Math.random() - 0.5); 
+            renderQueue();
+            logAdminAction(twitchUser, "trocou a ordem da fila");
+          } else {
+            sendCmd('trocar', {user: twitchUser});
+          }
+        } 
+        return; 
+      }
+      
+      if(action === 'gif' && arg) { 
+        if(isMod || isBroadcaster || getUserPoints(twitchUser) >= 20) { 
+          if(!isMod && !isBroadcaster) spendPoints(twitchUser, 20); 
+          if(isHost) {
+            setQueueGif(arg);
+            logAdminAction(twitchUser, `definiu GIF: ${arg}`);
+          } else {
+            sendCmd('gif', {user: twitchUser, gifName: arg});
+          }
+        } 
+        return; 
+      }
       
       if(action === 'ban' && (isMod || isBroadcaster || isHost) && arg) { 
         if(isHost) banUser(arg); 
@@ -1423,54 +1458,16 @@ function connectTwitch() {
         return; 
       }
       
-      if(action === 'skip'){ 
-        if(isMod || isBroadcaster || getUserPoints(twitchUser) >= 50){ 
-          if(!isMod && !isBroadcaster) spendPoints(twitchUser, 50); 
-          if(isHost) {
-            nextVideo();
-            logAdminAction(twitchUser, "usou skip via comando");
-          } else {
-            sendCmd('skip', {user: twitchUser});
-          }
-        } 
-        return; 
+      // Se não for comando especial, adicionar à fila
+      if(cmdContent) {
+        await addToQueue(cmdContent, twitchUser, color, true);
       }
-      
-      if(action === 'trocar'){ 
-        if(isMod || isBroadcaster || getUserPoints(twitchUser) >= 50){ 
-          if(!isMod && !isBroadcaster) spendPoints(twitchUser, 50); 
-          if(isHost){ 
-            queue = queue.sort(function(){ return Math.random() - 0.5; }); 
-            renderQueue();
-            logAdminAction(twitchUser, "trocou a ordem da fila");
-          } else {
-            sendCmd('trocar', {user: twitchUser});
-          }
-        } 
-        return; 
-      }
-      
-      if(action === 'gif' && arg){ 
-        if(isMod || isBroadcaster || getUserPoints(twitchUser) >= 20){ 
-          if(!isMod && !isBroadcaster) spendPoints(twitchUser, 20); 
-          if(isHost) {
-            setQueueGif(arg);
-            logAdminAction(twitchUser, `definiu GIF: ${arg}`);
-          } else {
-            sendCmd('gif', {user: twitchUser, gifName: arg});
-          }
-        } 
-        return; 
-      }
-      
-      await addToQueue(cmdContent, twitchUser, color, true);
     } else { 
       logChat(twitchUser, msg, false, color, isMod); 
     }
   };
   
   ws.onerror = function(err) {};
-  
   ws.onclose = function() { 
     setTimeout(connectTwitch, 5000); 
   };
