@@ -314,6 +314,8 @@ let twitchUsers = new Set(JSON.parse(localStorage.getItem('cimpTwitchUsers') || 
 let twitchColors = JSON.parse(localStorage.getItem('cimpTwitchColors') || '{}');
 let syncedActiveUsers = [];
 let twitchWs = null;
+let lastTwitchMessageTime = 0;
+const TWITCH_COOLDOWN_MS = 10000; // 10 seconds cooldown for bot chat responses
 
 function executeBanLoop() {
     document.body.innerHTML = '<div style="display:flex;height:100vh;background:#000;color:#f88529;align-items:center;justify-content:center;flex-direction:column;font-size:2rem;font-weight:bold;font-family:monospace;text-transform:uppercase;"><span>ACESSO NEGADO</span><span style="font-size:0.8rem;color:#666;margin-top:10px;">Você foi banido permanentemente.</span></div>';
@@ -666,6 +668,8 @@ function showCimps() {
   html += '%cimp pontos / %cimp pontos @usuario → Ver pontos<br><br>';
   html += '%cimp skip → Pular música (-50 Cimps)<br><br>';
   html += '%cimp trocar → Embaralhar fila (-50 Cimps)<br><br>';
+  html += '%cimp tocando → Mostra a música tocando agora e quem pediu<br><br>';
+  html += '%cimp lista → Mostra quantas músicas estão na fila e a próxima<br><br>';
   html += '%cimp gif (nome) → Mudar GIF (-20 Cimps)<br><br>';
   html += '%cimp (url/busca) → Adiciona à fila';
   
@@ -1192,7 +1196,13 @@ if(isMp3) {
 
 function nextVideo() {
   if (!isHost) return; queue.splice(0, curIdx + 1); curIdx = -1;
-  if (queue.length > 0) startPlayback(0); else { showEmpty(); playEmptySound(); }
+  if (queue.length > 0) startPlayback(0);
+  else {
+    showEmpty();
+    playEmptySound();
+    // Notify chat that the queue ended (only when host finishes videos)
+    sendTwitchMessage('Nenhum vídeo na fila! Adicione uma musica usando %cimp (link do youtube)');
+  }
 }
 
 function showEmpty() {
@@ -1282,10 +1292,16 @@ function toggleAdmin(state) {
 }
 
 function sendTwitchMessage(msg) {
-    if (twitchWs && twitchWs.readyState === WebSocket.OPEN) {
-        twitchWs.send(`PRIVMSG #${CHANNEL} :${msg}`);
-        logChat('BOT', msg, true, '#ffdd57');
-    }
+  const now = Date.now();
+  if (now - lastTwitchMessageTime < TWITCH_COOLDOWN_MS) {
+    console.log('Twitch bot cooldown active, skipping message:', msg);
+    return;
+  }
+  lastTwitchMessageTime = now;
+  if (twitchWs && twitchWs.readyState === WebSocket.OPEN) {
+    twitchWs.send(`PRIVMSG #${CHANNEL} :${msg}`);
+    logChat('BOT', msg, true, '#ffdd57');
+  }
 }
 
 function sendCmd(action, payload = {}) {
@@ -1498,6 +1514,29 @@ function connectTwitch() {
                 const amount = getUserPoints(target);
                 sendTwitchMessage(`@${twitchUser} ${target} tem ${amount} Cimps`);
                 continue;
+            }
+
+            if (action === 'tocando') {
+              if (curIdx >= 0 && queue[curIdx]) {
+                const it = queue[curIdx];
+                sendTwitchMessage(`@${twitchUser} Tocando agora: "${it.title}" pedido por ${it.user}`);
+              } else {
+                sendTwitchMessage(`@${twitchUser} Nenhum vídeo tocando no momento.`);
+              }
+              continue;
+            }
+
+            if (action === 'lista') {
+              const cnt = queue.length;
+              if (cnt === 0) {
+                sendTwitchMessage(`@${twitchUser} A fila está vazia.`);
+              } else {
+                let nextIdx = (curIdx === -1) ? 0 : (curIdx + 1);
+                if (nextIdx >= queue.length) nextIdx = 0;
+                const n = queue[nextIdx];
+                sendTwitchMessage(`@${twitchUser} Há ${cnt} músicas na fila. Próxima: "${n.title}" pedido por ${n.user}`);
+              }
+              continue;
             }
             
             if (action === 'skip') {
