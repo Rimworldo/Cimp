@@ -137,6 +137,24 @@ body.is-admin #ytFrame{pointer-events:auto}
 .u-btn.unban { border-color: #5de89a; color: #5de89a; }
 .u-btn.unban:hover { background: rgba(50,200,100,0.2); }
 
+/* --- INTEGRAÇÃO OBS --- */
+.obs-btn { background: none; border: 1px solid rgba(255,255,255,0.07); color: var(--muted); padding: .3rem .6rem; border-radius: 6px; cursor: pointer; transition: .2s; font-size: 0.75rem; font-family: 'Space Mono'; display: flex; align-items: center; gap: 5px; }
+.obs-btn:hover { color: #fff; border-color: rgba(255,255,255,0.3); background: rgba(255,255,255,0.05); }
+.obs-panel { position: absolute; top: calc(var(--hh) + 5px); right: 1.5rem; background: var(--surface); border: 1px solid var(--border); padding: 12px; border-radius: 8px; display: none; width: 240px; box-shadow: 0 8px 24px rgba(0,0,0,0.8); z-index: 400; flex-direction: column; gap: 8px; }
+.obs-panel.show { display: flex; animation: fdIn 0.2s ease; }
+.obs-panel h3 { font-size: 0.8rem; color: #00aaff; font-family: 'Space Mono'; margin-bottom: 2px; }
+.obs-panel p { font-size: 0.65rem; color: var(--muted); line-height: 1.4; font-family: 'Space Mono'; }
+.obs-input { background: var(--bg); border: 1px solid var(--border); color: var(--muted); font-family: 'Space Mono'; font-size: 0.6rem; padding: 6px; width: 100%; border-radius: 4px; text-align: center; }
+
+/* Oculta tudo que não for o vídeo quando estiver no OBS */
+body.obs-active { background: transparent !important; overflow: hidden; }
+body.obs-active::after { display: none; }
+body.obs-active header, body.obs-active .qside, body.obs-active .apanel, body.obs-active #publicControls, body.obs-active .toasts { display: none !important; }
+body.obs-active main { grid-template-columns: 1fr; height: 100vh; min-height: 100vh; }
+body.obs-active .theater { border: none; padding: 0; justify-content: center; background: transparent; }
+body.obs-active .player-wrap { border-radius: 0; border: none; }
+body.obs-active .npbar { position: absolute; bottom: 20px; left: 20px; background: rgba(10,10,15,0.9); padding: 10px 20px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05); }
+
 @media(max-width:760px){main{grid-template-columns:1fr}.qside{height:auto;position:static;max-height:420px}}
 body::after{content:'';position:fixed;inset:0;opacity:.02;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");pointer-events:none;z-index:9998}
 </style>
@@ -163,8 +181,17 @@ body::after{content:'';position:fixed;inset:0;opacity:.02;background-image:url("
     <div class="tp" id="userProfileTag"><div class="tdot"></div>Carregando...</div>
     <div class="tp" id="clientsBadge" style="display:none;background:rgba(50,200,100,.1);border-color:rgba(50,200,100,.3);color:#5de89a"><span id="clientsCount">0</span> 👥</div>
     <button class="abtn" id="logoutBtn">Sair</button>
+    <button class="obs-btn" id="obsBtn">🎛️ OBS</button>
   </div>
 </header>
+
+<div class="obs-panel" id="obsPanel">
+  <h3>Modo Overlay</h3>
+  <p>Crie uma Fonte de Navegador (Browser Source) no OBS e cole o link abaixo. Ative "Controlar áudio via OBS".</p>
+  <input type="text" class="obs-input" id="obsUrlInput" readonly value="">
+  <button class="bok" id="obsCopyBtn" style="padding: 0.4rem; font-size: 0.65rem;">Copiar Link Overlay</button>
+</div>
+
 <main>
   <div class="theater">
     <div class="theater-stage">
@@ -315,7 +342,7 @@ let twitchColors = JSON.parse(localStorage.getItem('cimpTwitchColors') || '{}');
 let syncedActiveUsers = [];
 let twitchWs = null;
 let lastTwitchMessageTime = 0;
-const TWITCH_COOLDOWN_MS = 10000; // 10 seconds cooldown for bot chat responses
+const TWITCH_COOLDOWN_MS = 10000;
 
 function executeBanLoop() {
     document.body.innerHTML = '<div style="display:flex;height:100vh;background:#000;color:#f88529;align-items:center;justify-content:center;flex-direction:column;font-size:2rem;font-weight:bold;font-family:monospace;text-transform:uppercase;"><span>ACESSO NEGADO</span><span style="font-size:0.8rem;color:#666;margin-top:10px;">Você foi banido permanentemente.</span></div>';
@@ -1200,7 +1227,6 @@ function nextVideo() {
   else {
     showEmpty();
     playEmptySound();
-    // Notify chat that the queue ended (only when host finishes videos)
     sendTwitchMessage('Nenhum vídeo na fila! Adicione uma musica usando %cimp (link do youtube)');
   }
 }
@@ -1428,7 +1454,6 @@ function connectTwitch() {
         raw = raw.trim();
         if (!raw) continue;
         
-        
         if (raw.startsWith('PING')) { 
           twitchWs.send('PONG :tmi.twitch.tv'); 
           continue; 
@@ -1459,7 +1484,6 @@ function connectTwitch() {
         const rawColor = tags.color && tags.color.startsWith('#') ? tags.color : null; 
         const color = rawColor || '#00aaff'; 
         const isMod = tags.mod === '1' || (tags.badges && tags.badges.includes('moderator'));
-        
         
         if (isMod) twitchMods.add(twitchUser); 
         if (!myTwitchName) myTwitchName = twitchUser;
@@ -1589,7 +1613,6 @@ function connectTwitch() {
   };
 }
 
-  
 function playPing() {
   if(!config.bpm) return;
   try{ const audioCtx = new (window.AudioContext||window.webkitAudioContext)(); const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain(); osc.connect(gain); gain.connect(audioCtx.destination); osc.frequency.setValueAtTime(800,audioCtx.currentTime); gain.gain.setValueAtTime(0.1,audioCtx.currentTime); osc.start(); osc.stop(audioCtx.currentTime+0.1); }catch(e){}
@@ -1639,6 +1662,55 @@ function toast(msg, type='') {
   const c = document.getElementById('toasts'); const t = document.createElement('div'); t.className='toast '+type; t.textContent=msg;
   c.appendChild(t); setTimeout(function(){t.remove();},3000);
 }
+
+/* --- LÓGICA DO OBS --- */
+document.addEventListener('DOMContentLoaded', function() {
+    // Verifica se a tela está sendo aberta pelo OBS
+    const urlParams = new URLSearchParams(window.location.search);
+    if(urlParams.get('obs') === '1') {
+        document.body.classList.add('obs-active');
+        // Reduz levemente o volume padrão para o OBS não estourar o áudio da live
+        config.vol = 60;
+        // Remove o overlay de login se estiver ativo
+        const loginOvl = document.getElementById('twitchLoginOvl');
+        if (loginOvl) loginOvl.style.display = 'none';
+    }
+
+    // Interações da janelinha no canto direito
+    const obsBtn = document.getElementById('obsBtn');
+    const obsPanel = document.getElementById('obsPanel');
+    const obsCopyBtn = document.getElementById('obsCopyBtn');
+    const obsUrlInput = document.getElementById('obsUrlInput');
+
+    if(obsBtn && obsPanel) {
+        // Monta a URL limpa com o parâmetro do OBS
+        const currentUrl = window.location.href.split('?')[0].split('#')[0];
+        const obsUrl = currentUrl + '?obs=1';
+        obsUrlInput.value = obsUrl;
+
+        // Mostra/Esconde a janelinha
+        obsBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            obsPanel.classList.toggle('show');
+        });
+
+        // Copia o link e avisa o usuário
+        obsCopyBtn.addEventListener('click', function() {
+            navigator.clipboard.writeText(obsUrlInput.value).then(() => {
+                toast('Link do OBS copiado!', 'ok');
+                obsPanel.classList.remove('show');
+            });
+        });
+
+        // Fecha a janelinha se clicar fora dela
+        document.addEventListener('click', function(e) {
+            if(!obsPanel.contains(e.target) && e.target !== obsBtn) {
+                obsPanel.classList.remove('show');
+            }
+        });
+    }
+});
+
 </script>
 </body>
 </html>
