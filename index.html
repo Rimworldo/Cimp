@@ -449,23 +449,7 @@ function checkTwitchAuth() {
         document.getElementById('twitchLoginOvl').classList.add('open');
     }
 }
-    // -------------------------
-
-    const hash = window.location.hash;
-    const storedToken = localStorage.getItem('cimpTwitchToken');
-
-    if (hash && hash.includes('access_token')) {
-        const params = new URLSearchParams(hash.substring(1));
-        const token = params.get('access_token');
-        window.location.hash = ''; 
-        localStorage.setItem('cimpTwitchToken', token);
-        fetchTwitchUser(token);
-    } else if (storedToken) {
-        fetchTwitchUser(storedToken);
-    } else {
-        document.getElementById('twitchLoginOvl').classList.add('open');
-    }
-}
+    
   
 async function fetchTwitchUser(token) {
     document.getElementById('twitchLoginOvl').classList.add('open');
