@@ -174,7 +174,7 @@ body::after{content:'';position:fixed;inset:0;opacity:.02;background-image:url("
         <audio id="rawAudio" controls></audio>
         <div class="eover" id="eover">
           <div class="ei">🎬</div>
-          <p id="eoverText">Conectando ao sistema P2P...</p>
+          <p id="eoverText">Conectando ao system P2P...</p>
           <span class="ec">Links MP3 / YouTube</span>
           <button class="sync-btn" id="syncBtn">Sincronizar Player</button>
         </div>
@@ -277,7 +277,6 @@ const REDIRECT_URI = "https://rimworldo.github.io/Cimp/";
 const ADMIN_USERS = ['daenil', 'bbeazinhaa', 'daenilajudante', 'daniloamorimking', 'gmoninho', 'nightbot', 'omonfredini', 'popolea', 'roninlinguica', 'saimo504'];
 
 const CHANNEL = 'aceboladoo_';
-const CMD = '%cimp';
 const ROOM_ID = `cimp-room-${CHANNEL}`;
 
 const EMPTY_SOUNDS = [
@@ -314,6 +313,7 @@ let twitchMods = new Set();
 let twitchUsers = new Set(JSON.parse(localStorage.getItem('cimpTwitchUsers') || '[]'));
 let twitchColors = JSON.parse(localStorage.getItem('cimpTwitchColors') || '{}');
 let syncedActiveUsers = [];
+let twitchWs = null;
 
 function executeBanLoop() {
     document.body.innerHTML = '<div style="display:flex;height:100vh;background:#000;color:#f88529;align-items:center;justify-content:center;flex-direction:column;font-size:2rem;font-weight:bold;font-family:monospace;text-transform:uppercase;"><span>ACESSO NEGADO</span><span style="font-size:0.8rem;color:#666;margin-top:10px;">Você foi banido permanentemente.</span></div>';
@@ -658,7 +658,7 @@ function showCimps() {
   let html = '<b>Rank Cimps</b><br>';
   const sorted = Object.entries(cimpsPoints).sort(function(a,b){ return b[1]-a[1]; });
   sorted.forEach(function(item) { html += `${item[0]} — ${item[1]} Cimps<br>`; });
-  html += '<br><b>Comandos:</b><br>%cimp skip → -50 Cimps<br>%cimp trocar → -50 Cimps<br>%cimp gif (nome) → -20 Cimps<br>%cimp (url/busca) → Adiciona à fila';
+  html += '<br><b>Comandos:</b><br>%simp skip → -50 Cimps<br>%simp trocar → -50 Cimps<br>%simp gif (nome) → -20 Cimps<br>%simp (url/busca) → Adiciona à fila';
   document.getElementById('cimpsContent').innerHTML = html;
   document.getElementById('cimpsOvl').classList.add('open');
 }
@@ -832,7 +832,7 @@ function setupHost() {
        const rawAudio = document.getElementById('rawAudio');
        if(isMp3 && rawAudio) {
            time = rawAudio.currentTime || 0;
-       } else if(ytReady && ytPlayer) {
+       } else if(ytReady && ytPlayer && ytPlayer.getCurrentTime) {
            time = (ytPlayer.getCurrentTime && typeof ytPlayer.getCurrentTime === 'function') ? ytPlayer.getCurrentTime() : 0;
        }
     }
@@ -1089,7 +1089,10 @@ async function addToQueue(rawUrl, user, color, fromTwitch) {
          id = result.videoId; 
          fallbackTitle = result.title; 
      } else { 
-         if(fromTwitch) logChat('SISTEMA', `Nada encontrado para: ${rawUrl}`, true); else toast('Nada encontrado', 'err'); return; 
+         if(fromTwitch) {
+             logChat('SISTEMA', `Nada encontrado para: ${rawUrl}`, true);
+             sendTwitchMessage(`@${user} Nada encontrado para sua busca.`);
+         } else toast('Nada encontrado', 'err'); return; 
      }
   }
 
@@ -1098,7 +1101,11 @@ async function addToQueue(rawUrl, user, color, fromTwitch) {
      fallbackTitle = rawUrl.split('/').pop(); 
   }
 
-  if (queue.find(function(q){ return q.videoId === id; })) { if(!fromTwitch) toast('Já na fila!', 'err'); return; }
+  if (queue.find(function(q){ return q.videoId === id; })) { 
+      if(!fromTwitch) toast('Já na fila!', 'err'); 
+      else sendTwitchMessage(`@${user} Esse vídeo já está na fila!`);
+      return; 
+  }
   
   let title = "";
   let duration = 0;
@@ -1108,16 +1115,19 @@ async function addToQueue(rawUrl, user, color, fromTwitch) {
      duration = 0;
   } else {
      title = await fetchTitle(id);
-if (title === "Título Indisponível" || !title) {
-    if (fallbackTitle) title = fallbackTitle;
-    else title = rawUrl.replace(/^.*(youtu.be\/|v\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/, 'Vídeo') || "Música";
-}
+     if (title === "Título Indisponível" || !title) {
+         if (fallbackTitle) title = fallbackTitle;
+         else title = rawUrl.replace(/^.*(youtu.be\/|v\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/, 'Vídeo') || "Música";
+     }
      if ((title === "Título Indisponível" || !title) && fallbackTitle) { 
          title = fallbackTitle; 
      }
      duration = await getVideoDuration(id);
      if(duration > 0 && duration > config.maxDuration * 60) { 
-         if(fromTwitch) logChat('SISTEMA', `Vídeo rejeitado por ser > ${config.maxDuration}min`, true); 
+         if(fromTwitch) {
+             logChat('SISTEMA', `Vídeo rejeitado por ser > ${config.maxDuration}min`, true); 
+             sendTwitchMessage(`@${user} Vídeo rejeitado por ultrapassar o limite de ${config.maxDuration} minutos.`);
+         }
          else toast(`>${config.maxDuration}min`, 'err'); 
          return; 
      }
@@ -1134,6 +1144,11 @@ if (title === "Título Indisponível" || !title) {
   logChat(user, title, true, userColor || '#00aaff');
   if(isHost) playPing();
   if(!fromTwitch) toast(`Adicionado`, 'ok');
+  
+  if(fromTwitch) {
+      sendTwitchMessage(`@${user} adicionou o video (${title}) na posição (${queue.length})`);
+  }
+  
   if (isHost && curIdx === -1) startPlayback(0); else renderQueue();
 }
 
@@ -1247,6 +1262,12 @@ function toggleAdmin(state) {
     renderQueue();
 }
 
+function sendTwitchMessage(msg) {
+    if (twitchWs && twitchWs.readyState === WebSocket.OPEN) {
+        twitchWs.send(`PRIVMSG #${CHANNEL} :${msg}`);
+    }
+}
+
 function sendCmd(action, payload = {}) {
   if(isHost){
     if(action === 'add') {
@@ -1347,22 +1368,26 @@ setInterval(function() {
 }, 500);
 
 function connectTwitch() {
-  const ws = new WebSocket('wss://irc-ws.chat.twitch.tv:443'); const rnd = Math.floor(Math.random()*99999);
-  ws.onopen = function() { ws.send(`PASS oauth:justinfan${rnd}`); ws.send(`NICK justinfan${rnd}`); ws.send(`JOIN #${CHANNEL}`); ws.send('CAP REQ :twitch.tv/tags'); };
+  twitchWs = new WebSocket('wss://irc-ws.chat.twitch.tv:443');
   
-  ws.onmessage = async function(e) {
-    // Correção: Divide as mensagens do WebSocket caso a Twitch envie várias de uma vez
+  twitchWs.onopen = function() { 
+    twitchWs.send(`PASS oauth:cew00vlmlespwmdjgdmbe8x2d5mo7r`); 
+    twitchWs.send(`NICK jonhcreator2`); 
+    twitchWs.send(`JOIN #${CHANNEL}`); 
+    twitchWs.send('CAP REQ :twitch.tv/tags'); 
+  };
+  
+  twitchWs.onmessage = async function(e) {
     const messages = e.data.trim().split('\r\n');
     
     for (let raw of messages) {
         raw = raw.trim();
         if (!raw) continue;
-        if (raw.startsWith('PING')) { ws.send('PONG :tmi.twitch.tv'); continue; }
+        if (raw.startsWith('PING')) { twitchWs.send('PONG :tmi.twitch.tv'); continue; }
         
         let tags = {}; 
         let messagePart = raw;
         
-        // Isola as tags de forma mais segura encontrando o espaço antes da máscara IRC
         if (raw.startsWith('@')) { 
             const tagEnd = raw.indexOf(' :'); 
             if (tagEnd !== -1) {
@@ -1386,20 +1411,47 @@ function connectTwitch() {
         if (rawColor) { twitchColors[twitchUser] = rawColor; localStorage.setItem('cimpTwitchColors', JSON.stringify(twitchColors)); }
         if (!twitchUsers.has(twitchUser)) { twitchUsers.add(twitchUser); localStorage.setItem('cimpTwitchUsers', JSON.stringify(Array.from(twitchUsers))); }
         
-        // Correção: Lógica de comandos mais robusta, sem exigir espaço obrigatório no startsWith
-        if (msg.toLowerCase().startsWith(CMD.toLowerCase())) {
-            const payload = msg.slice(CMD.length).trim();
+        if (msg.toLowerCase().startsWith('%simp') || msg.toLowerCase().startsWith('%cimp')) {
+            const currentCmd = msg.toLowerCase().startsWith('%simp') ? '%simp' : '%cimp';
+            const payload = msg.slice(currentCmd.length).trim();
             const parts = payload.split(' '); 
             const action = parts[0] ? parts[0].toLowerCase() : ''; 
             const arg = parts.slice(1).join(' ');
             
             if (action === 'ban' && (isMod || isHost) && arg) { if(isHost) banUser(arg); else sendCmd('ban', {target: arg}); continue; }
             if (action === 'unban' && (isMod || isHost) && arg) { if(isHost) unbanUser(arg); continue; }
-            if (action === 'skip') { if(isMod || getUserPoints(twitchUser)>=50){ if(!isMod) spendPoints(twitchUser,50); if(isHost) nextVideo(); else sendCmd('skip',{user: twitchUser}); } continue; }
-            if (action === 'trocar' && getUserPoints(twitchUser)>=50) { spendPoints(twitchUser,50); if(isHost){ queue=queue.sort(function(){return Math.random()-0.5;}); renderQueue(); } else sendCmd('trocar',{user: twitchUser}); continue; }
-            if (action === 'gif' && arg && getUserPoints(twitchUser)>=20) { spendPoints(twitchUser,20); if(isHost) setQueueGif(arg); else sendCmd('gif',{user: twitchUser, gifName: arg}); continue; }
             
-            // Adiciona o link ou busca à fila se for um comando genérico
+            if (action === 'skip') { 
+                if(isMod || getUserPoints(twitchUser) >= 50){ 
+                    if(!isMod) spendPoints(twitchUser, 50); 
+                    if(isHost) nextVideo(); else sendCmd('skip', {user: twitchUser}); 
+                    sendTwitchMessage(`@${twitchUser} deu skip na musica`);
+                } else {
+                    sendTwitchMessage(`@${twitchUser} Pontos insuficientes`);
+                } 
+                continue; 
+            }
+            
+            if (action === 'trocar') { 
+                if(getUserPoints(twitchUser) >= 50) {
+                    spendPoints(twitchUser, 50); 
+                    if(isHost){ queue = queue.sort(function(){return Math.random() - 0.5;}); renderQueue(); } else sendCmd('trocar', {user: twitchUser}); 
+                } else {
+                    sendTwitchMessage(`@${twitchUser} Pontos insuficientes`);
+                }
+                continue; 
+            }
+            
+            if (action === 'gif' && arg) { 
+                if(getUserPoints(twitchUser) >= 20) {
+                    spendPoints(twitchUser, 20); 
+                    if(isHost) setQueueGif(arg); else sendCmd('gif', {user: twitchUser, gifName: arg}); 
+                } else {
+                    sendTwitchMessage(`@${twitchUser} Pontos insuficientes`);
+                }
+                continue; 
+            }
+            
             if (payload && !['ban', 'unban', 'skip', 'trocar', 'gif'].includes(action)) {
                 await addToQueue(payload, twitchUser, color, true);
             }
@@ -1408,7 +1460,7 @@ function connectTwitch() {
         }
     }
   };
-  ws.onclose = function() { setTimeout(connectTwitch, 5000); };
+  twitchWs.onclose = function() { setTimeout(connectTwitch, 5000); };
 }
   
 function playPing() {
