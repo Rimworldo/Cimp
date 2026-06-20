@@ -1,1646 +1,2750 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="pt-BR">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Cimp.</title>
-<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
-<script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
-<style>
-*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-:root{
-  --bg:#0a0a0f;--surface:#12121a;--surface2:#1a1a26;
-  --border:rgba(255,255,255,0.07);--accent:#f88529;
-  --text:#f0f0f5;--muted:#6b6b80;--item:#16161f;--hh:58px;
-}
-body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;min-height:100vh;overflow-x:hidden}
-header{height:var(--hh);display:flex;align-items:center;justify-content:space-between;padding:0 1.5rem;border-bottom:1px solid var(--border);position:sticky;top:0;z-index:200;background:rgba(10,10,15,.95)}
-.logo{font-size:1.5rem;font-weight:800;letter-spacing:-.02em; display:flex; align-items:center; gap:10px;}
-.logo span{color:var(--accent)}
-.role-badge{font-size:0.6rem; padding:0.2rem 0.5rem; border-radius:10px; font-family:'Space Mono'; text-transform:uppercase; font-weight:bold; letter-spacing:1px; background:#333;}
-.role-host{background:rgba(0,170,255,.2); color:#00aaff; border:1px solid #00aaff;}
-.role-client{background:rgba(50,200,100,.2); color:#5de89a; border:1px solid #5de89a;}
-.hright{display:flex;align-items:center;gap:.75rem}
-.abtn{background:none;border:1px solid var(--border);color:var(--muted);padding:.3rem .85rem;border-radius:20px;font-family:'Space Mono',monospace;font-size:.7rem;cursor:pointer;transition:.2s}
-.abtn:hover{border-color:var(--accent);color:var(--accent)}
-.abtn.on{border-color:var(--accent);color:var(--accent);background:rgba(248,133,41,.1)}
-.dropdown { position: relative; display: inline-block; }
-.dropdown-content { display: none; position: absolute; right: 0; top: 120%; background-color: var(--surface); min-width: 280px; box-shadow: 0px 8px 20px rgba(0,0,0,0.8); z-index: 300; border: 1px solid var(--border); border-radius: 8px; max-height: 350px; overflow-y: auto; }
-.dropdown-content.show { display: block; animation: fdIn 0.2s ease; }
-@keyframes fdIn { from{opacity:0; transform:translateY(-10px)} to{opacity:1; transform:translateY(0)} }
-.plist-item { padding: 10px; border-bottom: 1px solid rgba(255,255,255,0.03); display: flex; align-items: center; gap: 10px; cursor: pointer; transition: .2s; }
-.plist-item:hover { background-color: var(--surface2); }
-.plist-thumb { width: 45px; height: 26px; border-radius: 4px; object-fit: cover; }
-.plist-title { font-size: 0.75rem; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; color: var(--text); }
-.plist-del { background: none; border: none; color: var(--muted); cursor: pointer; padding: 5px; font-size: 0.8rem; border-radius: 4px; }
-.plist-del:hover { color: var(--accent); background: rgba(248,133,41,.1); }
-.tp{display:flex;align-items:center;gap:.4rem;background:rgba(0,170,255,.12);border:1px solid rgba(0,170,255,.3);border-radius:20px;padding:.28rem .75rem;font-family:'Space Mono',monospace;font-size:.7rem;color:#00aaff}
-.tdot{width:6px;height:6px;border-radius:50%;background:#00aaff;animation:blink 2s infinite}
-@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
-main{display:grid;grid-template-columns:1fr 350px;min-height:calc(100vh - var(--hh))}
-.theater{padding:1.5rem;border-right:1px solid var(--border);display:flex;flex-direction:column;gap:1rem}
-.theater-stage{position:relative;width:100%}
-.player-glow{position:absolute;inset:0;background-size:cover;background-position:center;filter:blur(50px) saturate(200%);opacity:0;transition:opacity 0.6s ease;z-index:0;pointer-events:none;border-radius:12px;transform:scale(1.05)}
-.player-glow.active{opacity:0.25}
-.player-wrap{background:#000;border-radius:12px;overflow:hidden;position:relative;aspect-ratio:16/9;border:1px solid var(--border);width:100%;z-index:2; display:flex; align-items:center; justify-content:center;}
-#ytFrame{width:100%;height:100%;border:none;display:block;pointer-events:none}
-body.is-admin #ytFrame{pointer-events:auto}
-#rawAudio { width: 90%; margin: auto; display: none; z-index: 5; position: relative; }
-.eover{position:absolute;inset:0;background:rgba(10,10,15,.93);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.75rem;transition:opacity .3s;z-index:3}
-.eover.gone{opacity:0; pointer-events:none;}
-.eover .ei{font-size:2.5rem;opacity:.2}
-.eover p{font-family:'Space Mono',monospace;font-size:.75rem;color:var(--muted);text-align:center;line-height:1.8}
-.eover .ec{color:var(--accent);background:var(--surface2);padding:.35rem .8rem;border-radius:6px;font-size:.78rem;display:inline-block;margin-top:.2rem}
-.sync-btn{background:var(--accent); color:#fff; border:none; padding:10px 20px; border-radius:8px; font-weight:bold; cursor:pointer; margin-top:10px; display:none; animation:pulse 2s infinite;}
-@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(248,133,41,.4)}70%{box-shadow:0 0 0 10px transparent}100%{box-shadow:0 0 0 0 transparent}}
-.npbar{display:flex;align-items:center;gap:.75rem;position:relative;z-index:2}
-.npi{flex:1;min-width:0}
-.nplbl{font-family:'Space Mono',monospace;font-size:.6rem;color:var(--accent);letter-spacing:.18em;text-transform:uppercase;margin-bottom:.2rem}
-.nptitle{font-size:1rem;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.npuser{font-family:'Space Mono',monospace;font-size:.7rem;color:var(--muted)}.npuser b{color:#00aaff;font-weight:400}
-.apanel{background:var(--surface);border:1px solid rgba(248,133,41,.2);border-radius:10px;padding:1rem 1.25rem;display:none;flex-direction:column;gap:.75rem;position:relative;z-index:2}
-.apanel.show{display:flex}
-.aptitle{font-family:'Space Mono',monospace;font-size:.6rem;color:var(--accent);letter-spacing:.15em;text-transform:uppercase}
-.aprow{display:flex;align-items:center;gap:.6rem;flex-wrap:wrap}
-.cbtn{background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:.45rem .9rem;border-radius:7px;font-family:'Space Mono',monospace;font-size:.72rem;cursor:pointer;transition:.2s;display:flex;align-items:center;gap:.35rem;white-space:nowrap}
-.cbtn:hover{background:var(--accent);border-color:var(--accent);color:#fff}
-.cbtn.red:hover{background:#e03030;border-color:#e03030}
-.volrow{display:flex;align-items:center;gap:.5rem;flex:1;min-width:140px}
-.volrow label{font-family:'Space Mono',monospace;font-size:.68rem;color:var(--muted)}
-.volrow input[type=range]{flex:1;accent-color:var(--accent);cursor:pointer}
-.volnum{font-family:'Space Mono',monospace;font-size:.68rem;min-width:30px;text-align:right}
-.madd{border-top:1px solid var(--border);padding-top:.7rem;display:flex;flex-direction:column;gap:.4rem}
-.maddt{font-family:'Space Mono',monospace;font-size:.6rem;color:var(--muted);letter-spacing:.1em;text-transform:uppercase}
-.cfg-row{display:flex;align-items:center;gap:1rem;flex-wrap:wrap;background:rgba(0,0,0,.2);padding:.6rem .8rem;border-radius:8px;border:1px solid rgba(255,255,255,.03)}
-.cfg-row label{font-family:'Space Mono',monospace;font-size:.65rem;color:var(--text);display:flex;align-items:center;gap:.4rem;cursor:pointer}
-.cfg-row input[type=number]{background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:.2rem .4rem;width:45px;font-family:'Space Mono',monospace;font-size:.65rem;outline:none}
-.cfg-row input[type=checkbox]{accent-color:var(--accent);width:14px;height:14px;cursor:pointer}
-.qside{display:flex;flex-direction:column;height:calc(100vh - var(--hh));position:sticky;top:var(--hh);overflow:hidden}
-.qhead{padding:1rem 1.25rem .7rem;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
-.qtitle{font-size:.8rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
-.qcount{background:var(--accent);color:#fff;font-family:'Space Mono',monospace;font-size:.62rem;font-weight:700;padding:.12rem .45rem;border-radius:20px}
-.user-add-box { display: flex; padding: 0.7rem 1.25rem; background: var(--surface); border-bottom: 1px solid var(--border); gap: 0.4rem; flex-shrink: 0; }
-.user-add-box input { flex: 1; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 0.5rem 0.65rem; color: var(--text); font-family: 'Space Mono', monospace; font-size: 0.7rem; outline: none; transition: .2s; }
-.user-add-box input:focus { border-color: var(--accent); }
-.user-add-box button { background: var(--accent); border: none; color: #fff; padding: 0.5rem 0.9rem; border-radius: 6px; font-weight: 700; cursor: pointer; transition: .2s; }
-.user-add-box button:hover { background: #d37322; }
-.qlist-wrap{flex:1;position:relative;display:flex;flex-direction:column;overflow:hidden;}
-#qlistBg{position:absolute;inset:0;background-size:cover;background-position:center;opacity:0.1;z-index:0;pointer-events:none;transition:background-image 0.5s ease;}
-.qlist{flex:1;overflow-y:auto;padding:.7rem;display:flex;flex-direction:column;gap:.45rem;position:relative;z-index:1}
-.qlist::-webkit-scrollbar{width:3px}
-.qlist::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
-.qi{background:#000;border:1px solid var(--border);border-radius:8px;padding:.6rem .7rem;display:flex;align-items:center;gap:.65rem;transition:border-color .2s;animation:qs .25s ease;position:relative;z-index:1}
-@keyframes qs{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}
-.qi:hover{border-color:rgba(255,255,255,.12)}
-.qi.cur{border-color:var(--accent);}
-.qithumb{width:68px;height:40px;border-radius:5px;background:var(--surface2);overflow:hidden;flex-shrink:0;position:relative}
-.qithumb img{width:100%;height:100%;object-fit:cover;display:block}
-.qibody{flex:1;min-width:0}
-.qititle{font-size:.78rem;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.3}
-.qiuser{font-family:'Space Mono',monospace;font-size:.62rem;color:#00aaff;margin-top:.1rem}
-.qinum{font-family:'Space Mono',monospace;font-size:.68rem;color:var(--muted);flex-shrink:0}
-.qidel, .qisave{background:none;border:none;color:var(--muted);cursor:pointer;font-size:.75rem;padding:.15rem .3rem;border-radius:4px;transition:.2s;flex-shrink:0;display:none}
-.qi:hover .qidel, .qi:hover .qisave{display:flex}
-.qidel:hover{color:var(--accent);background:rgba(248,133,41,.1)}
-.qisave:hover{color:#5de89a;background:rgba(50,200,100,.1)}
-.qempty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.5rem;color:var(--muted);text-align:center;padding:2rem}
-.qempty .qei{font-size:2rem;opacity:.2}
-.qempty p{font-family:'Space Mono',monospace;font-size:.7rem;line-height:1.8}
-.qempty .qc{color:var(--accent)}
-.chatbox{border-top:1px solid var(--border);padding:.7rem 1rem;max-height:130px;overflow-y:auto;background:var(--surface);flex-shrink:0}
-.chatbox::-webkit-scrollbar{width:3px}
-.chatbox::-webkit-scrollbar-thumb{background:var(--border)}
-.cblbl{font-family:'Space Mono',monospace;font-size:.58rem;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;margin-bottom:.4rem}
-.cm{font-family:'Space Mono',monospace;font-size:.66rem;line-height:1.6;padding:.1rem 0;border-bottom:1px solid rgba(255,255,255,.025);animation:fdin .2s ease}
-@keyframes fdin{from{opacity:0}to{opacity:1}}
-.cmu{color:#00aaff;font-weight:700}.cmc{color:var(--accent)}.cmt{color:var(--muted)}
-.ovl{position:fixed;inset:0;background:rgba(0,0,0,.9);display:none;align-items:center;justify-content:center;z-index:999}
-.ovl.open{display:flex}
-.modal{background:var(--surface);border:1px solid rgba(248,133,41,.25);border-radius:14px;padding:2rem;width:320px; text-align:center;}
-.modal h2{font-size:1.15rem;font-weight:800;margin-bottom:.25rem}
-.modal p{font-family:'Space Mono',monospace;font-size:.7rem;color:var(--muted);margin-bottom:1.1rem;line-height:1.7}
-.toasts{position:fixed;bottom:1.5rem;left:50%;transform:translateX(-50%);z-index:9999;display:flex;flex-direction:column;gap:.4rem;align-items:center;pointer-events:none}
-.toast{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:.5rem 1.1rem;font-family:'Space Mono',monospace;font-size:.72rem;color:var(--text);white-space:nowrap;animation:tin .3s ease,tout .3s ease 2.4s forwards}
-.toast.ok{border-color:rgba(50,200,100,.4);color:#5de89a}
-.toast.err{border-color:rgba(255,60,60,.4);color:#ff7070}
-@keyframes tin{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
-@keyframes tout{to{opacity:0}}
-.bok{background:var(--accent);color:#fff; padding: .6rem; border-radius: 7px; border: none; font-family:'Space Mono',monospace; font-size:.75rem; font-weight:700; cursor:pointer; transition:.2s; width: 100%;}
-.bok:hover{background:#d37322}
-.bcan{background:var(--surface2);color:var(--text); padding: .6rem; border-radius: 7px; border: none; font-family:'Space Mono',monospace; font-size:.75rem; font-weight:700; cursor:pointer; transition:.2s; width: 100%; margin-top:10px;}
-
-.u-item { display:flex; justify-content:space-between; align-items:center; padding: 0.5rem; border-bottom: 1px solid rgba(255,255,255,0.05); }
-.u-item:last-child { border-bottom: none; }
-.u-name { font-family: 'Space Mono'; font-size: 0.75rem; color: #00aaff; font-weight: bold; }
-.u-btn { background: none; border: 1px solid #f88529; color: #f88529; font-family: 'Space Mono'; font-size: 0.6rem; padding: 0.2rem 0.5rem; border-radius: 4px; cursor: pointer; transition: 0.2s; }
-.u-btn:hover { background: rgba(248,133,41,0.2); }
-.u-btn.unban { border-color: #5de89a; color: #5de89a; }
-.u-btn.unban:hover { background: rgba(50,200,100,0.2); }
-
-@media(max-width:760px){main{grid-template-columns:1fr}.qside{height:auto;position:static;max-height:420px}}
-body::after{content:'';position:fixed;inset:0;opacity:.02;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");pointer-events:none;z-index:9998}
-</style>
-</head>
-<body>
-
-<div class="ovl open" id="twitchLoginOvl" style="background:#0a0a0f; z-index:99999;">
-  <div class="modal">
-    <h2 style="color:#00aaff; font-size:1.8rem; margin-bottom:10px;">Cimp. P2P</h2>
-    <p>Você precisa logar com a Twitch para acessar a sala.</p>
-    <button class="bok" id="twitchLoginBtn" style="background:#00aaff; font-size:1rem; padding:1rem;">Entrar com a Twitch</button>
-  </div>
-</div>
-
-<header>
-  <div class="logo">Cimp<span>.</span> <span id="roleBadge" class="role-badge">Carregando...</span></div>
-  <div class="hright">
-    <button class="abtn" id="usersBtn" style="display:none">👥 Usuários</button>
-    <div class="dropdown">
-      <button class="abtn" id="dropBtn">📑 Playlist</button>
-      <div class="dropdown-content" id="dropContent"></div>
-    </div>
-    <button class="abtn" id="cimpsBtn">💰 Cimps</button>
-    <div class="tp" id="userProfileTag"><div class="tdot"></div>Carregando...</div>
-    <div class="tp" id="clientsBadge" style="display:none;background:rgba(50,200,100,.1);border-color:rgba(50,200,100,.3);color:#5de89a"><span id="clientsCount">0</span> 👥</div>
-    <button class="abtn" id="logoutBtn">Sair</button>
-  </div>
-</header>
-<main>
-  <div class="theater">
-    <div class="theater-stage">
-      <div id="playerGlow" class="player-glow"></div>
-      <div class="player-wrap">
-        <div id="ytFrame"></div>
-        <audio id="rawAudio" controls></audio>
-        <div class="eover" id="eover">
-          <div class="ei">🎬</div>
-          <p id="eoverText">Conectando ao system P2P...</p>
-          <span class="ec">Links MP3 / YouTube</span>
-          <button class="sync-btn" id="syncBtn">Sincronizar Player</button>
-        </div>
-      </div>
-    </div>
-    <div class="npbar" id="npbar" style="display:none">
-      <div class="npi">
-        <div class="nplbl">▶ tocando agora</div>
-        <div class="nptitle" id="npTitle">—</div>
-        <div class="npuser">pedido por <b id="npUser">—</b></div>
-      </div>
-    </div>
-    <div id="publicControls" style="display:flex;gap:1rem;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1rem 1.25rem;margin:1rem 0;position:relative;z-index:2">
-      <div class="volrow" id="publicSeekRow" style="flex:1;display:none">
-        <label>POSIÇÃO</label>
-        <input type="range" min="0" max="100" value="0" id="seekSliderClient">
-        <span class="volnum" id="seekTimeClient">0:00/--:--</span>
-      </div>
-      <div class="volrow" style="flex:1">
-        <label>VOL</label>
-        <input type="range" min="0" max="100" value="80" id="volSliderClient">
-        <span class="volnum" id="volNumClient">80%</span>
-      </div>
-    </div>
-    <div class="apanel" id="apanel">
-      <div class="aptitle">⚙ controles do admin</div>
-      <div class="aprow">
-        <button class="cbtn" id="pauseBtn">⏸ Pausar</button>
-        <button class="cbtn" id="skipBtn">⏭ Pular</button>
-        <button class="cbtn red" id="clearBtn">🗑 Limpar fila</button>
-      </div>
-      <div class="madd" id="cfgGeral">
-        <div class="maddt">configurações visuais</div>
-        <div class="cfg-row">
-          <label>Palavras GIF: <input type="number" id="cfgGifWords" min="1" max="5" value="3"></label>
-          <label><input type="checkbox" id="cfgGlow"> Glow</label>
-          <label><input type="checkbox" id="cfgBpm"> Beep ao adicionar</label>
-          <label><input type="checkbox" id="cfgEmptySound"> Som de fila vazia</label>
-          <label><input type="checkbox" id="cfgAutoSkip"> Pulo Automático</label>
-          <label>Max dur.(min): <input type="number" id="cfgMaxDur" min="1" value="5"></label>
-        </div>
-      </div>
-    </div>
-  </div>
-  <div class="qside">
-    <div class="qhead">
-      <span class="qtitle">Fila de vídeos</span>
-      <span class="qcount" id="qcount">0</span>
-    </div>
-    <div class="user-add-box">
-      <input type="text" id="userUrl" placeholder="Link YouTube ou Pesquisa..." autocomplete="off">
-      <button id="userAddBtn">Add</button>
-    </div>
-    <div class="qlist-wrap">
-      <div id="qlistBg"></div>
-      <div class="qlist" id="qlist">
-        <div class="qempty" id="qempty">
-          <div class="qei">📺</div>
-          <p>Fila vazia!</p>
-        </div>
-      </div>
-    </div>
-    <div class="chatbox" id="chatbox">
-      <div class="cblbl">Log Cimp.</div>
-    </div>
-  </div>
-</main>
-
-<div class="ovl" id="cimpsOvl">
-  <div class="modal" style="width:380px">
-    <h2>💰 Cimps</h2>
-    <div id="cimpsContent" style="font-family:Space Mono;font-size:0.75rem;line-height:1.6;max-height:400px;overflow-y:auto; text-align:left;"></div>
-    <div class="mbtns" style="margin-top:1rem">
-      <button class="bok" id="cimpsClose">Fechar</button>
-    </div>
-  </div>
-</div>
-
-<div class="ovl" id="usersOvl">
-  <div class="modal" style="width:380px; padding: 1.5rem;">
-    <h2>👥 Usuários Ativos</h2>
-    <div id="activeUsersContent" style="max-height:150px; overflow-y:auto; margin-bottom:1rem; border:1px solid rgba(255,255,255,0.05); border-radius:8px; padding:0.5rem; background:#000;"></div>
-    
-    <div id="bannedSection" style="display:none;">
-        <h2 style="font-size: 0.9rem; color:#f88529; margin-top:1rem;">🔨 Banidos</h2>
-        <div id="bannedUsersContent" style="max-height:150px; overflow-y:auto; border:1px solid rgba(248,133,41,0.2); border-radius:8px; padding:0.5rem; background:#000;"></div>
-    </div>
-
-    <div class="mbtns" style="margin-top:1rem">
-      <button class="bok" id="usersClose">Fechar</button>
-    </div>
-  </div>
-</div>
-
-<div class="toasts" id="toasts"></div>
-
-<script>
-const TWITCH_CLIENT_ID = '7o46ook2j72oegbie1sd1wevif167x';
-const REDIRECT_URI = "https://rimworldo.github.io/Cimp/";
-const ADMIN_USERS = ['biilena', 'umqualqueaii', 'daniloamorimking', 'omonfredini', 'atelis2', 'roninlinguica', 'saimo504'];
-
-const CHANNEL = 'aceboladoo_';
-const ROOM_ID = `cimp-room-${CHANNEL}`;
-
-const EMPTY_SOUNDS = [
-  'https://files.catbox.moe/d5u8m3.mp3',
-  'https://files.catbox.moe/xjed0e.mp3'
-];
-
-let emptySoundAudio = null;
-let queue = [];
-let curIdx = -1;
-let isAdmin = false;
-let isHost = false;
-let paused = false;
-let ytReady = false;
-let ytPlayer = null;
-let currentGifUrl = '';
-let clientSynced = false;
-let cimpPlaylist = JSON.parse(localStorage.getItem('cimpPlaylist') || '[]');
-let myName = ''; 
-let myTwitchName = '';
-let config = JSON.parse(localStorage.getItem('cimpConfig') || '{}');
-if(!config.gifWords) config = { gifWords: 3, glow: true, bpm: true, vol: 80, emptySound: true, autoSkip: true, maxDuration: 5 };
-let cimpsPoints = JSON.parse(localStorage.getItem('cimpPoints') || '{}');
-let bannedUsers = JSON.parse(localStorage.getItem('cimpBannedUsers') || '[]');
-let hostPeer = null;
-let clientPeer = null;
-let hostConnection = null;
-let clientConnections = [];
-let p2pInitializing = false;
-let clientCurrentVideoId = null;
-let clientLastSyncTime = 0;
-const SYNC_TOLERANCE_SEC = 5;
-let twitchMods = new Set();
-let twitchUsers = new Set(JSON.parse(localStorage.getItem('cimpTwitchUsers') || '[]'));
-let twitchColors = JSON.parse(localStorage.getItem('cimpTwitchColors') || '{}');
-let syncedActiveUsers = [];
-let twitchWs = null;
-let lastTwitchMessageTime = 0;
-const TWITCH_COOLDOWN_MS = 10000; // 10 seconds cooldown for bot chat responses
-
-function executeBanLoop() {
-    document.body.innerHTML = '<div style="display:flex;height:100vh;background:#000;color:#f88529;align-items:center;justify-content:center;flex-direction:column;font-size:2rem;font-weight:bold;font-family:monospace;text-transform:uppercase;"><span>ACESSO NEGADO</span><span style="font-size:0.8rem;color:#666;margin-top:10px;">Você foi banido permanentemente.</span></div>';
-    setTimeout(function() { 
-        try { window.close(); } catch(e) {}
-        window.location.href = "about:blank"; 
-    }, 100);
-}
-
-window.onload = function() {
-    checkTwitchAuth();
-};
-
-window.addEventListener('DOMContentLoaded', function() {
-    const rawAudio = document.getElementById('rawAudio');
-    if (rawAudio) {
-        rawAudio.onended = function() {
-            if(isHost && config.autoSkip) nextVideo();
-        };
-    }
-});
-
-function sanitizeColor(c) {
-    if(!c) return '';
-    if(c.match(/^#[0-9a-fA-F]{3,8}$/) || c.match(/^[a-zA-Z]+$/)) return c;
-    return '#00aaff';
-}
-
-function checkTwitchAuth() {
-    const hash = window.location.hash;
-    const storedToken = localStorage.getItem('cimpTwitchToken');
-
-    if (hash && hash.includes('access_token')) {
-        const params = new URLSearchParams(hash.substring(1));
-        const token = params.get('access_token');
-        window.location.hash = ''; 
-        localStorage.setItem('cimpTwitchToken', token);
-        fetchTwitchUser(token);
-    } else if (storedToken) {
-        fetchTwitchUser(storedToken);
-    } else {
-        document.getElementById('twitchLoginOvl').classList.add('open');
-    }
-}
-
-async function fetchTwitchUser(token) {
-    document.getElementById('twitchLoginOvl').classList.add('open');
-    document.querySelector('#twitchLoginOvl h2').textContent = "Conectando...";
-    document.querySelector('#twitchLoginOvl p').textContent = "Validando sessão na Twitch...";
-    document.getElementById('twitchLoginBtn').style.display = 'none';
-
-    try {
-        const res = await fetch('https://api.twitch.tv/helix/users', {
-            headers: { 'Authorization': `Bearer ${token}`, 'Client-Id': TWITCH_CLIENT_ID }
-        });
-        
-        if (res.status === 401) throw new Error('Token expirado');
-        
-        const data = await res.json();
-        
-        if(data.data && data.data.length > 0) {
-            const user = data.data[0];
-            myName = user.login.toLowerCase();
-            
-            if (bannedUsers.includes(myName)) {
-                executeBanLoop();
-                return;
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Cimp.</title>
+        <link
+            href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap"
+            rel="stylesheet"
+        />
+        <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+        <style>
+            *,
+            *::before,
+            *::after {
+                box-sizing: border-box;
+                margin: 0;
+                padding: 0;
+            }
+            :root {
+                --bg: #0a0a0f;
+                --surface: #12121a;
+                --surface2: #1a1a26;
+                --border: rgba(255, 255, 255, 0.07);
+                --accent: #f88529;
+                --text: #f0f0f5;
+                --muted: #6b6b80;
+                --item: #16161f;
+                --hh: 58px;
+            }
+            body {
+                background: var(--bg);
+                color: var(--text);
+                font-family: "Syne", sans-serif;
+                min-height: 100vh;
+                overflow-x: hidden;
+            }
+            header {
+                height: var(--hh);
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                padding: 0 1.5rem;
+                border-bottom: 1px solid var(--border);
+                position: sticky;
+                top: 0;
+                z-index: 200;
+                background: rgba(10, 10, 15, 0.95);
+            }
+            .logo {
+                font-size: 1.5rem;
+                font-weight: 800;
+                letter-spacing: -0.02em;
+                display: flex;
+                align-items: center;
+                gap: 10px;
+            }
+            .logo span {
+                color: var(--accent);
+            }
+            .role-badge {
+                font-size: 0.6rem;
+                padding: 0.2rem 0.5rem;
+                border-radius: 10px;
+                font-family: "Space Mono";
+                text-transform: uppercase;
+                font-weight: bold;
+                letter-spacing: 1px;
+                background: #333;
+            }
+            .role-host {
+                background: rgba(0, 170, 255, 0.2);
+                color: #00aaff;
+                border: 1px solid #00aaff;
+            }
+            .role-client {
+                background: rgba(50, 200, 100, 0.2);
+                color: #5de89a;
+                border: 1px solid #5de89a;
+            }
+            .hright {
+                display: flex;
+                align-items: center;
+                gap: 0.75rem;
+            }
+            .abtn {
+                background: none;
+                border: 1px solid var(--border);
+                color: var(--muted);
+                padding: 0.3rem 0.85rem;
+                border-radius: 20px;
+                font-family: "Space Mono", monospace;
+                font-size: 0.7rem;
+                cursor: pointer;
+                transition: 0.2s;
+            }
+            .abtn:hover {
+                border-color: var(--accent);
+                color: var(--accent);
+            }
+            .abtn.on {
+                border-color: var(--accent);
+                color: var(--accent);
+                background: rgba(248, 133, 41, 0.1);
+            }
+            .dropdown {
+                position: relative;
+                display: inline-block;
+            }
+            .dropdown-content {
+                display: none;
+                position: absolute;
+                right: 0;
+                top: 120%;
+                background-color: var(--surface);
+                min-width: 280px;
+                box-shadow: 0px 8px 20px rgba(0, 0, 0, 0.8);
+                z-index: 300;
+                border: 1px solid var(--border);
+                border-radius: 8px;
+                max-height: 350px;
+                overflow-y: auto;
+            }
+            .dropdown-content.show {
+                display: block;
+                animation: fdIn 0.2s ease;
+            }
+            @keyframes fdIn {
+                from {
+                    opacity: 0;
+                    transform: translateY(-10px);
+                }
+                to {
+                    opacity: 1;
+                    transform: translateY(0);
+                }
+            }
+            .plist-item {
+                padding: 10px;
+                border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                cursor: pointer;
+                transition: 0.2s;
+            }
+            .plist-item:hover {
+                background-color: var(--surface2);
+            }
+            .plist-thumb {
+                width: 45px;
+                height: 26px;
+                border-radius: 4px;
+                object-fit: cover;
+            }
+            .plist-title {
+                font-size: 0.75rem;
+                font-weight: bold;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                flex: 1;
+                color: var(--text);
+            }
+            .plist-del {
+                background: none;
+                border: none;
+                color: var(--muted);
+                cursor: pointer;
+                padding: 5px;
+                font-size: 0.8rem;
+                border-radius: 4px;
+            }
+            .plist-del:hover {
+                color: var(--accent);
+                background: rgba(248, 133, 41, 0.1);
+            }
+            .tp {
+                display: flex;
+                align-items: center;
+                gap: 0.4rem;
+                background: rgba(0, 170, 255, 0.12);
+                border: 1px solid rgba(0, 170, 255, 0.3);
+                border-radius: 20px;
+                padding: 0.28rem 0.75rem;
+                font-family: "Space Mono", monospace;
+                font-size: 0.7rem;
+                color: #00aaff;
+            }
+            .tdot {
+                width: 6px;
+                height: 6px;
+                border-radius: 50%;
+                background: #00aaff;
+                animation: blink 2s infinite;
+            }
+            @keyframes blink {
+                0%,
+                100% {
+                    opacity: 1;
+                }
+                50% {
+                    opacity: 0.3;
+                }
+            }
+            main {
+                display: grid;
+                grid-template-columns: 1fr 350px;
+                min-height: calc(100vh - var(--hh));
+            }
+            .theater {
+                padding: 1.5rem;
+                border-right: 1px solid var(--border);
+                display: flex;
+                flex-direction: column;
+                gap: 1rem;
+            }
+            .theater-stage {
+                position: relative;
+                width: 100%;
+            }
+            .player-glow {
+                position: absolute;
+                inset: 0;
+                background-size: cover;
+                background-position: center;
+                filter: blur(50px) saturate(200%);
+                opacity: 0;
+                transition: opacity 0.6s ease;
+                z-index: 0;
+                pointer-events: none;
+                border-radius: 12px;
+                transform: scale(1.05);
+            }
+            .player-glow.active {
+                opacity: 0.25;
+            }
+            .player-wrap {
+                background: #000;
+                border-radius: 12px;
+                overflow: hidden;
+                position: relative;
+                aspect-ratio: 16/9;
+                border: 1px solid var(--border);
+                width: 100%;
+                z-index: 2;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+            #ytFrame {
+                width: 100%;
+                height: 100%;
+                border: none;
+                display: block;
+                pointer-events: none;
+            }
+            body.is-admin #ytFrame {
+                pointer-events: auto;
+            }
+            #rawAudio {
+                width: 90%;
+                margin: auto;
+                display: none;
+                z-index: 5;
+                position: relative;
+            }
+            .eover {
+                position: absolute;
+                inset: 0;
+                background: rgba(10, 10, 15, 0.93);
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                gap: 0.75rem;
+                transition: opacity 0.3s;
+                z-index: 3;
+            }
+            .eover.gone {
+                opacity: 0;
+                pointer-events: none;
+            }
+            .eover .ei {
+                font-size: 2.5rem;
+                opacity: 0.2;
+            }
+            .eover p {
+                font-family: "Space Mono", monospace;
+                font-size: 0.75rem;
+                color: var(--muted);
+                text-align: center;
+                line-height: 1.8;
+            }
+            .eover .ec {
+                color: var(--accent);
+                background: var(--surface2);
+                padding: 0.35rem 0.8rem;
+                border-radius: 6px;
+                font-size: 0.78rem;
+                display: inline-block;
+                margin-top: 0.2rem;
+            }
+            .sync-btn {
+                background: var(--accent);
+                color: #fff;
+                border: none;
+                padding: 10px 20px;
+                border-radius: 8px;
+                font-weight: bold;
+                cursor: pointer;
+                margin-top: 10px;
+                display: none;
+                animation: pulse 2s infinite;
+            }
+            @keyframes pulse {
+                0% {
+                    box-shadow: 0 0 0 0 rgba(248, 133, 41, 0.4);
+                }
+                70% {
+                    box-shadow: 0 0 0 10px transparent;
+                }
+                100% {
+                    box-shadow: 0 0 0 0 transparent;
+                }
+            }
+            .npbar {
+                display: flex;
+                align-items: center;
+                gap: 0.75rem;
+                position: relative;
+                z-index: 2;
+            }
+            .npi {
+                flex: 1;
+                min-width: 0;
+            }
+            .nplbl {
+                font-family: "Space Mono", monospace;
+                font-size: 0.6rem;
+                color: var(--accent);
+                letter-spacing: 0.18em;
+                text-transform: uppercase;
+                margin-bottom: 0.2rem;
+            }
+            .nptitle {
+                font-size: 1rem;
+                font-weight: 700;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+            .npuser {
+                font-family: "Space Mono", monospace;
+                font-size: 0.7rem;
+                color: var(--muted);
+            }
+            .npuser b {
+                color: #00aaff;
+                font-weight: 400;
+            }
+            .apanel {
+                background: var(--surface);
+                border: 1px solid rgba(248, 133, 41, 0.2);
+                border-radius: 10px;
+                padding: 1rem 1.25rem;
+                display: none;
+                flex-direction: column;
+                gap: 0.75rem;
+                position: relative;
+                z-index: 2;
+            }
+            .apanel.show {
+                display: flex;
+            }
+            .aptitle {
+                font-family: "Space Mono", monospace;
+                font-size: 0.6rem;
+                color: var(--accent);
+                letter-spacing: 0.15em;
+                text-transform: uppercase;
+            }
+            .aprow {
+                display: flex;
+                align-items: center;
+                gap: 0.6rem;
+                flex-wrap: wrap;
+            }
+            .cbtn {
+                background: var(--surface2);
+                border: 1px solid var(--border);
+                color: var(--text);
+                padding: 0.45rem 0.9rem;
+                border-radius: 7px;
+                font-family: "Space Mono", monospace;
+                font-size: 0.72rem;
+                cursor: pointer;
+                transition: 0.2s;
+                display: flex;
+                align-items: center;
+                gap: 0.35rem;
+                white-space: nowrap;
+            }
+            .cbtn:hover {
+                background: var(--accent);
+                border-color: var(--accent);
+                color: #fff;
+            }
+            .cbtn.red:hover {
+                background: #e03030;
+                border-color: #e03030;
+            }
+            .volrow {
+                display: flex;
+                align-items: center;
+                gap: 0.5rem;
+                flex: 1;
+                min-width: 140px;
+            }
+            .volrow label {
+                font-family: "Space Mono", monospace;
+                font-size: 0.68rem;
+                color: var(--muted);
+            }
+            .volrow input[type="range"] {
+                flex: 1;
+                accent-color: var(--accent);
+                cursor: pointer;
+            }
+            .volnum {
+                font-family: "Space Mono", monospace;
+                font-size: 0.68rem;
+                min-width: 30px;
+                text-align: right;
+            }
+            .madd {
+                border-top: 1px solid var(--border);
+                padding-top: 0.7rem;
+                display: flex;
+                flex-direction: column;
+                gap: 0.4rem;
+            }
+            .maddt {
+                font-family: "Space Mono", monospace;
+                font-size: 0.6rem;
+                color: var(--muted);
+                letter-spacing: 0.1em;
+                text-transform: uppercase;
+            }
+            .cfg-row {
+                display: flex;
+                align-items: center;
+                gap: 1rem;
+                flex-wrap: wrap;
+                background: rgba(0, 0, 0, 0.2);
+                padding: 0.6rem 0.8rem;
+                border-radius: 8px;
+                border: 1px solid rgba(255, 255, 255, 0.03);
+            }
+            .cfg-row label {
+                font-family: "Space Mono", monospace;
+                font-size: 0.65rem;
+                color: var(--text);
+                display: flex;
+                align-items: center;
+                gap: 0.4rem;
+                cursor: pointer;
+            }
+            .cfg-row input[type="number"] {
+                background: var(--surface2);
+                border: 1px solid var(--border);
+                color: var(--text);
+                border-radius: 4px;
+                padding: 0.2rem 0.4rem;
+                width: 45px;
+                font-family: "Space Mono", monospace;
+                font-size: 0.65rem;
+                outline: none;
+            }
+            .cfg-row input[type="checkbox"] {
+                accent-color: var(--accent);
+                width: 14px;
+                height: 14px;
+                cursor: pointer;
+            }
+            .qside {
+                display: flex;
+                flex-direction: column;
+                height: calc(100vh - var(--hh));
+                position: sticky;
+                top: var(--hh);
+                overflow: hidden;
+            }
+            .qhead {
+                padding: 1rem 1.25rem 0.7rem;
+                border-bottom: 1px solid var(--border);
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                flex-shrink: 0;
+            }
+            .qtitle {
+                font-size: 0.8rem;
+                font-weight: 700;
+                text-transform: uppercase;
+                letter-spacing: 0.08em;
+                color: var(--muted);
+            }
+            .qcount {
+                background: var(--accent);
+                color: #fff;
+                font-family: "Space Mono", monospace;
+                font-size: 0.62rem;
+                font-weight: 700;
+                padding: 0.12rem 0.45rem;
+                border-radius: 20px;
+            }
+            .user-add-box {
+                display: flex;
+                padding: 0.7rem 1.25rem;
+                background: var(--surface);
+                border-bottom: 1px solid var(--border);
+                gap: 0.4rem;
+                flex-shrink: 0;
+            }
+            .user-add-box input {
+                flex: 1;
+                background: var(--bg);
+                border: 1px solid var(--border);
+                border-radius: 6px;
+                padding: 0.5rem 0.65rem;
+                color: var(--text);
+                font-family: "Space Mono", monospace;
+                font-size: 0.7rem;
+                outline: none;
+                transition: 0.2s;
+            }
+            .user-add-box input:focus {
+                border-color: var(--accent);
+            }
+            .user-add-box button {
+                background: var(--accent);
+                border: none;
+                color: #fff;
+                padding: 0.5rem 0.9rem;
+                border-radius: 6px;
+                font-weight: 700;
+                cursor: pointer;
+                transition: 0.2s;
+            }
+            .user-add-box button:hover {
+                background: #d37322;
+            }
+            .qlist-wrap {
+                flex: 1;
+                position: relative;
+                display: flex;
+                flex-direction: column;
+                overflow: hidden;
+            }
+            #qlistBg {
+                position: absolute;
+                inset: 0;
+                background-size: cover;
+                background-position: center;
+                opacity: 0.1;
+                z-index: 0;
+                pointer-events: none;
+                transition: background-image 0.5s ease;
+            }
+            .qlist {
+                flex: 1;
+                overflow-y: auto;
+                padding: 0.7rem;
+                display: flex;
+                flex-direction: column;
+                gap: 0.45rem;
+                position: relative;
+                z-index: 1;
+            }
+            .qlist::-webkit-scrollbar {
+                width: 3px;
+            }
+            .qlist::-webkit-scrollbar-thumb {
+                background: var(--border);
+                border-radius: 3px;
+            }
+            .qi {
+                background: #000;
+                border: 1px solid var(--border);
+                border-radius: 8px;
+                padding: 0.6rem 0.7rem;
+                display: flex;
+                align-items: center;
+                gap: 0.65rem;
+                transition: border-color 0.2s;
+                animation: qs 0.25s ease;
+                position: relative;
+                z-index: 1;
+            }
+            @keyframes qs {
+                from {
+                    opacity: 0;
+                    transform: translateY(-6px);
+                }
+                to {
+                    opacity: 1;
+                    transform: translateY(0);
+                }
+            }
+            .qi:hover {
+                border-color: rgba(255, 255, 255, 0.12);
+            }
+            .qi.cur {
+                border-color: var(--accent);
+            }
+            .qithumb {
+                width: 68px;
+                height: 40px;
+                border-radius: 5px;
+                background: var(--surface2);
+                overflow: hidden;
+                flex-shrink: 0;
+                position: relative;
+            }
+            .qithumb img {
+                width: 100%;
+                height: 100%;
+                object-fit: cover;
+                display: block;
+            }
+            .qibody {
+                flex: 1;
+                min-width: 0;
+            }
+            .qititle {
+                font-size: 0.78rem;
+                font-weight: 700;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                line-height: 1.3;
+            }
+            .qiuser {
+                font-family: "Space Mono", monospace;
+                font-size: 0.62rem;
+                color: #00aaff;
+                margin-top: 0.1rem;
+            }
+            .qinum {
+                font-family: "Space Mono", monospace;
+                font-size: 0.68rem;
+                color: var(--muted);
+                flex-shrink: 0;
+            }
+            .qidel,
+            .qisave {
+                background: none;
+                border: none;
+                color: var(--muted);
+                cursor: pointer;
+                font-size: 0.75rem;
+                padding: 0.15rem 0.3rem;
+                border-radius: 4px;
+                transition: 0.2s;
+                flex-shrink: 0;
+                display: none;
+            }
+            .qi:hover .qidel,
+            .qi:hover .qisave {
+                display: flex;
+            }
+            .qidel:hover {
+                color: var(--accent);
+                background: rgba(248, 133, 41, 0.1);
+            }
+            .qisave:hover {
+                color: #5de89a;
+                background: rgba(50, 200, 100, 0.1);
+            }
+            .qempty {
+                flex: 1;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                gap: 0.5rem;
+                color: var(--muted);
+                text-align: center;
+                padding: 2rem;
+            }
+            .qempty .qei {
+                font-size: 2rem;
+                opacity: 0.2;
+            }
+            .qempty p {
+                font-family: "Space Mono", monospace;
+                font-size: 0.7rem;
+                line-height: 1.8;
+            }
+            .qempty .qc {
+                color: var(--accent);
+            }
+            .chatbox {
+                border-top: 1px solid var(--border);
+                padding: 0.7rem 1rem;
+                max-height: 130px;
+                overflow-y: auto;
+                background: var(--surface);
+                flex-shrink: 0;
+            }
+            .chatbox::-webkit-scrollbar {
+                width: 3px;
+            }
+            .chatbox::-webkit-scrollbar-thumb {
+                background: var(--border);
+            }
+            .cblbl {
+                font-family: "Space Mono", monospace;
+                font-size: 0.58rem;
+                color: var(--muted);
+                letter-spacing: 0.1em;
+                text-transform: uppercase;
+                margin-bottom: 0.4rem;
+            }
+            .cm {
+                font-family: "Space Mono", monospace;
+                font-size: 0.66rem;
+                line-height: 1.6;
+                padding: 0.1rem 0;
+                border-bottom: 1px solid rgba(255, 255, 255, 0.025);
+                animation: fdin 0.2s ease;
+            }
+            @keyframes fdin {
+                from {
+                    opacity: 0;
+                }
+                to {
+                    opacity: 1;
+                }
+            }
+            .cmu {
+                color: #00aaff;
+                font-weight: 700;
+            }
+            .cmc {
+                color: var(--accent);
+            }
+            .cmt {
+                color: var(--muted);
+            }
+            .ovl {
+                position: fixed;
+                inset: 0;
+                background: rgba(0, 0, 0, 0.9);
+                display: none;
+                align-items: center;
+                justify-content: center;
+                z-index: 999;
+            }
+            .ovl.open {
+                display: flex;
+            }
+            .modal {
+                background: var(--surface);
+                border: 1px solid rgba(248, 133, 41, 0.25);
+                border-radius: 14px;
+                padding: 2rem;
+                width: 320px;
+                text-align: center;
+            }
+            .modal h2 {
+                font-size: 1.15rem;
+                font-weight: 800;
+                margin-bottom: 0.25rem;
+            }
+            .modal p {
+                font-family: "Space Mono", monospace;
+                font-size: 0.7rem;
+                color: var(--muted);
+                margin-bottom: 1.1rem;
+                line-height: 1.7;
+            }
+            .toasts {
+                position: fixed;
+                bottom: 1.5rem;
+                left: 50%;
+                transform: translateX(-50%);
+                z-index: 9999;
+                display: flex;
+                flex-direction: column;
+                gap: 0.4rem;
+                align-items: center;
+                pointer-events: none;
+            }
+            .toast {
+                background: var(--surface);
+                border: 1px solid var(--border);
+                border-radius: 8px;
+                padding: 0.5rem 1.1rem;
+                font-family: "Space Mono", monospace;
+                font-size: 0.72rem;
+                color: var(--text);
+                white-space: nowrap;
+                animation:
+                    tin 0.3s ease,
+                    tout 0.3s ease 2.4s forwards;
+            }
+            .toast.ok {
+                border-color: rgba(50, 200, 100, 0.4);
+                color: #5de89a;
+            }
+            .toast.err {
+                border-color: rgba(255, 60, 60, 0.4);
+                color: #ff7070;
+            }
+            @keyframes tin {
+                from {
+                    opacity: 0;
+                    transform: translateY(8px);
+                }
+                to {
+                    opacity: 1;
+                    transform: translateY(0);
+                }
+            }
+            @keyframes tout {
+                to {
+                    opacity: 0;
+                }
+            }
+            .bok {
+                background: var(--accent);
+                color: #fff;
+                padding: 0.6rem;
+                border-radius: 7px;
+                border: none;
+                font-family: "Space Mono", monospace;
+                font-size: 0.75rem;
+                font-weight: 700;
+                cursor: pointer;
+                transition: 0.2s;
+                width: 100%;
+            }
+            .bok:hover {
+                background: #d37322;
+            }
+            .bcan {
+                background: var(--surface2);
+                color: var(--text);
+                padding: 0.6rem;
+                border-radius: 7px;
+                border: none;
+                font-family: "Space Mono", monospace;
+                font-size: 0.75rem;
+                font-weight: 700;
+                cursor: pointer;
+                transition: 0.2s;
+                width: 100%;
+                margin-top: 10px;
             }
 
-            document.getElementById('twitchLoginOvl').classList.remove('open');
-            assignRolesAndStart();
-        } else {
-            throw new Error('Usuário não encontrado');
-        }
-    } catch(e) {
-        localStorage.removeItem('cimpTwitchToken');
-        toast('Sessão expirada. Faça login novamente.', 'err');
-        document.querySelector('#twitchLoginOvl h2').textContent = "Cimp. P2P";
-        document.querySelector('#twitchLoginOvl p').textContent = "Você precisa logar com a Twitch para acessar a sala.";
-        document.getElementById('twitchLoginBtn').style.display = 'block';
-    }
-}
+            .u-item {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                padding: 0.5rem;
+                border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            }
+            .u-item:last-child {
+                border-bottom: none;
+            }
+            .u-name {
+                font-family: "Space Mono";
+                font-size: 0.75rem;
+                color: #00aaff;
+                font-weight: bold;
+            }
+            .u-btn {
+                background: none;
+                border: 1px solid #f88529;
+                color: #f88529;
+                font-family: "Space Mono";
+                font-size: 0.6rem;
+                padding: 0.2rem 0.5rem;
+                border-radius: 4px;
+                cursor: pointer;
+                transition: 0.2s;
+            }
+            .u-btn:hover {
+                background: rgba(248, 133, 41, 0.2);
+            }
+            .u-btn.unban {
+                border-color: #5de89a;
+                color: #5de89a;
+            }
+            .u-btn.unban:hover {
+                background: rgba(50, 200, 100, 0.2);
+            }
 
-document.getElementById('twitchLoginBtn').addEventListener('click', function() {
-    const url = `https://id.twitch.tv/oauth2/authorize?client_id=${TWITCH_CLIENT_ID}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&response_type=token&scope=user:read:email`;
-    window.location.href = url;
-});
+            @media (max-width: 760px) {
+                main {
+                    grid-template-columns: 1fr;
+                }
+                .qside {
+                    height: auto;
+                    position: static;
+                    max-height: 420px;
+                }
+            }
+            body::after {
+                content: "";
+                position: fixed;
+                inset: 0;
+                opacity: 0.02;
+                background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+                pointer-events: none;
+                z-index: 9998;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="ovl open" id="twitchLoginOvl" style="background: #0a0a0f; z-index: 99999">
+            <div class="modal">
+                <h2 style="color: #00aaff; font-size: 1.8rem; margin-bottom: 10px">Cimp. P2P</h2>
+                <p>Você precisa logar com a Twitch para acessar a sala.</p>
+                <button class="bok" id="twitchLoginBtn" style="background: #00aaff; font-size: 1rem; padding: 1rem">
+                    Entrar com a Twitch
+                </button>
+            </div>
+        </div>
 
-document.getElementById('logoutBtn').addEventListener('click', function() {
-    localStorage.removeItem('cimpTwitchToken');
-    window.location.reload();
-});
+        <header>
+            <div class="logo">Cimp<span>.</span> <span id="roleBadge" class="role-badge">Carregando...</span></div>
+            <div class="hright">
+                <button class="abtn" id="usersBtn" style="display: none">👥 Usuários</button>
+                <div class="dropdown">
+                    <button class="abtn" id="dropBtn">📑 Playlist</button>
+                    <div class="dropdown-content" id="dropContent"></div>
+                </div>
+                <button class="abtn" id="cimpsBtn">💰 Cimps</button>
+                <div class="tp" id="userProfileTag">
+                    <div class="tdot"></div>
+                    Carregando...
+                </div>
+                <div
+                    class="tp"
+                    id="clientsBadge"
+                    style="
+                        display: none;
+                        background: rgba(50, 200, 100, 0.1);
+                        border-color: rgba(50, 200, 100, 0.3);
+                        color: #5de89a;
+                    "
+                >
+                    <span id="clientsCount">0</span> 👥
+                </div>
+                <button class="abtn" id="logoutBtn">Sair</button>
+            </div>
+        </header>
+        <main>
+            <div class="theater">
+                <div class="theater-stage">
+                    <div id="playerGlow" class="player-glow"></div>
+                    <div class="player-wrap">
+                        <div id="ytFrame"></div>
+                        <audio id="rawAudio" controls></audio>
+                        <div class="eover" id="eover">
+                            <div class="ei">🎬</div>
+                            <p id="eoverText">Conectando ao system P2P...</p>
+                            <span class="ec">Links MP3 / YouTube</span>
+                            <button class="sync-btn" id="syncBtn">Sincronizar Player</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="npbar" id="npbar" style="display: none">
+                    <div class="npi">
+                        <div class="nplbl">▶ tocando agora</div>
+                        <div class="nptitle" id="npTitle">—</div>
+                        <div class="npuser">pedido por <b id="npUser">—</b></div>
+                    </div>
+                </div>
+                <div
+                    id="publicControls"
+                    style="
+                        display: flex;
+                        gap: 1rem;
+                        background: var(--surface);
+                        border: 1px solid var(--border);
+                        border-radius: 12px;
+                        padding: 1rem 1.25rem;
+                        margin: 1rem 0;
+                        position: relative;
+                        z-index: 2;
+                    "
+                >
+                    <div class="volrow" id="publicSeekRow" style="flex: 1; display: none">
+                        <label>POSIÇÃO</label>
+                        <input type="range" min="0" max="100" value="0" id="seekSliderClient" />
+                        <span class="volnum" id="seekTimeClient">0:00/--:--</span>
+                    </div>
+                    <div class="volrow" style="flex: 1">
+                        <label>VOL</label>
+                        <input type="range" min="0" max="100" value="80" id="volSliderClient" />
+                        <span class="volnum" id="volNumClient">80%</span>
+                    </div>
+                </div>
+                <div class="apanel" id="apanel">
+                    <div class="aptitle">⚙ controles do admin</div>
+                    <div class="aprow">
+                        <button class="cbtn" id="pauseBtn">⏸ Pausar</button>
+                        <button class="cbtn" id="skipBtn">⏭ Pular</button>
+                        <button class="cbtn red" id="clearBtn">🗑 Limpar fila</button>
+                    </div>
+                    <div class="madd" id="cfgGeral">
+                        <div class="maddt">configurações visuais</div>
+                        <div class="cfg-row">
+                            <label
+                                >Palavras GIF: <input type="number" id="cfgGifWords" min="1" max="5" value="3"
+                            /></label>
+                            <label><input type="checkbox" id="cfgGlow" /> Glow</label>
+                            <label><input type="checkbox" id="cfgBpm" /> Beep ao adicionar</label>
+                            <label><input type="checkbox" id="cfgEmptySound" /> Som de fila vazia</label>
+                            <label><input type="checkbox" id="cfgAutoSkip" /> Pulo Automático</label>
+                            <label>Max dur.(min): <input type="number" id="cfgMaxDur" min="1" value="5" /></label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="qside">
+                <div class="qhead">
+                    <span class="qtitle">Fila de vídeos</span>
+                    <span class="qcount" id="qcount">0</span>
+                </div>
+                <div class="user-add-box">
+                    <input type="text" id="userUrl" placeholder="Link YouTube ou Pesquisa..." autocomplete="off" />
+                    <button id="userAddBtn">Add</button>
+                </div>
+                <div class="qlist-wrap">
+                    <div id="qlistBg"></div>
+                    <div class="qlist" id="qlist">
+                        <div class="qempty" id="qempty">
+                            <div class="qei">📺</div>
+                            <p>Fila vazia!</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="chatbox" id="chatbox">
+                    <div class="cblbl">Log Cimp.</div>
+                </div>
+            </div>
+        </main>
 
-function assignRolesAndStart() {
-    document.getElementById('userProfileTag').innerHTML = `<div class="tdot"></div>${myName}`;
-    
-    const PRIMARY_HOST = 'aceboladoo_';
-    const SECONDARY_HOST = 'daniloamorimking';
-    
-    if (myName === PRIMARY_HOST) {
-        isAdmin = true;
-        isHost = true;
-        document.getElementById('roleBadge').textContent = `👑 HOST (${myName})`;
-        document.getElementById('roleBadge').className = 'role-badge role-host';
-        document.getElementById('usersBtn').style.display = 'block';
-        toggleAdmin(true);
-        startAsHost();
-    } 
-    else if (myName === SECONDARY_HOST) {
-        isAdmin = true;
-        toggleAdmin(true);
-        document.getElementById('roleBadge').textContent = '🔒 ADMIN (tentando host)';
-        document.getElementById('roleBadge').style.background = 'rgba(255, 165, 0, 0.2)';
-        document.getElementById('roleBadge').style.color = '#ffb347';
-        document.getElementById('roleBadge').style.borderColor = '#ffb347';
-        document.getElementById('usersBtn').style.display = 'block';
-        
-        startAsClient();
-        
-        setTimeout(function() {
-            if (!isHost && (!hostConnection || !hostConnection.open)) {
+        <div class="ovl" id="cimpsOvl">
+            <div class="modal" style="width: 380px">
+                <h2>💰 Cimps</h2>
+                <div
+                    id="cimpsContent"
+                    style="
+                        font-family: Space Mono;
+                        font-size: 0.75rem;
+                        line-height: 1.6;
+                        max-height: 400px;
+                        overflow-y: auto;
+                        text-align: left;
+                    "
+                ></div>
+                <div class="mbtns" style="margin-top: 1rem">
+                    <button class="bok" id="cimpsClose">Fechar</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="ovl" id="usersOvl">
+            <div class="modal" style="width: 380px; padding: 1.5rem">
+                <h2>👥 Usuários Ativos</h2>
+                <div
+                    id="activeUsersContent"
+                    style="
+                        max-height: 150px;
+                        overflow-y: auto;
+                        margin-bottom: 1rem;
+                        border: 1px solid rgba(255, 255, 255, 0.05);
+                        border-radius: 8px;
+                        padding: 0.5rem;
+                        background: #000;
+                    "
+                ></div>
+
+                <div id="bannedSection" style="display: none">
+                    <h2 style="font-size: 0.9rem; color: #f88529; margin-top: 1rem">🔨 Banidos</h2>
+                    <div
+                        id="bannedUsersContent"
+                        style="
+                            max-height: 150px;
+                            overflow-y: auto;
+                            border: 1px solid rgba(248, 133, 41, 0.2);
+                            border-radius: 8px;
+                            padding: 0.5rem;
+                            background: #000;
+                        "
+                    ></div>
+                </div>
+
+                <div class="mbtns" style="margin-top: 1rem">
+                    <button class="bok" id="usersClose">Fechar</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="toasts" id="toasts"></div>
+
+        <script>
+            const TWITCH_CLIENT_ID = "7o46ook2j72oegbie1sd1wevif167x";
+            const REDIRECT_URI = "https://rimworldo.github.io/Cimp/";
+            const ADMIN_USERS = [
+                "biilena",
+                "umqualqueaii",
+                "daniloamorimking",
+                "omonfredini",
+                "atelis2",
+                "roninlinguica",
+                "saimo504",
+            ];
+
+            const CHANNEL = "aceboladoo_";
+            const ROOM_ID = `cimp-room-${CHANNEL}`;
+
+            const EMPTY_SOUNDS = ["https://files.catbox.moe/d5u8m3.mp3", "https://files.catbox.moe/xjed0e.mp3"];
+
+            let emptySoundAudio = null;
+            let queue = [];
+            let curIdx = -1;
+            let isAdmin = false;
+            let isHost = false;
+            let paused = false;
+            let ytReady = false;
+            let ytPlayer = null;
+            let currentGifUrl = "";
+            let clientSynced = false;
+            let cimpPlaylist = JSON.parse(localStorage.getItem("cimpPlaylist") || "[]");
+            let myName = "";
+            let myTwitchName = "";
+            let config = JSON.parse(localStorage.getItem("cimpConfig") || "{}");
+            if (!config.gifWords)
+                config = {
+                    gifWords: 3,
+                    glow: true,
+                    bpm: true,
+                    vol: 80,
+                    emptySound: true,
+                    autoSkip: true,
+                    maxDuration: 5,
+                };
+            let cimpsPoints = JSON.parse(localStorage.getItem("cimpPoints") || "{}");
+            let bannedUsers = JSON.parse(localStorage.getItem("cimpBannedUsers") || "[]");
+            let hostPeer = null;
+            let clientPeer = null;
+            let hostConnection = null;
+            let clientConnections = [];
+            let p2pInitializing = false;
+            let clientCurrentVideoId = null;
+            let clientLastSyncTime = 0;
+            const SYNC_TOLERANCE_SEC = 5;
+            let twitchMods = new Set();
+            let twitchUsers = new Set(JSON.parse(localStorage.getItem("cimpTwitchUsers") || "[]"));
+            let twitchColors = JSON.parse(localStorage.getItem("cimpTwitchColors") || "{}");
+            let syncedActiveUsers = [];
+            let twitchWs = null;
+            let lastTwitchMessageTime = 0;
+            const TWITCH_COOLDOWN_MS = 10000; // 10 seconds cooldown for bot chat responses
+
+            function executeBanLoop() {
+                document.body.innerHTML =
+                    '<div style="display:flex;height:100vh;background:#000;color:#f88529;align-items:center;justify-content:center;flex-direction:column;font-size:2rem;font-weight:bold;font-family:monospace;text-transform:uppercase;"><span>ACESSO NEGADO</span><span style="font-size:0.8rem;color:#666;margin-top:10px;">Você foi banido permanentemente.</span></div>';
+                setTimeout(function () {
+                    try {
+                        window.close();
+                    } catch (e) {}
+                    window.location.href = "about:blank";
+                }, 100);
+            }
+
+            window.onload = function () {
+                checkTwitchAuth();
+            };
+
+            window.addEventListener("DOMContentLoaded", function () {
+                const rawAudio = document.getElementById("rawAudio");
+                if (rawAudio) {
+                    rawAudio.onended = function () {
+                        if (isHost && config.autoSkip) nextVideo();
+                    };
+                }
+            });
+
+            function sanitizeColor(c) {
+                if (!c) return "";
+                if (c.match(/^#[0-9a-fA-F]{3,8}$/) || c.match(/^[a-zA-Z]+$/)) return c;
+                return "#00aaff";
+            }
+
+            function checkTwitchAuth() {
+                const hash = window.location.hash;
+                const storedToken = localStorage.getItem("cimpTwitchToken");
+
+                if (hash && hash.includes("access_token")) {
+                    const params = new URLSearchParams(hash.substring(1));
+                    const token = params.get("access_token");
+                    window.location.hash = "";
+                    localStorage.setItem("cimpTwitchToken", token);
+                    fetchTwitchUser(token);
+                } else if (storedToken) {
+                    fetchTwitchUser(storedToken);
+                } else {
+                    document.getElementById("twitchLoginOvl").classList.add("open");
+                }
+            }
+
+            async function fetchTwitchUser(token) {
+                document.getElementById("twitchLoginOvl").classList.add("open");
+                document.querySelector("#twitchLoginOvl h2").textContent = "Conectando...";
+                document.querySelector("#twitchLoginOvl p").textContent = "Validando sessão na Twitch...";
+                document.getElementById("twitchLoginBtn").style.display = "none";
+
+                try {
+                    const res = await fetch("https://api.twitch.tv/helix/users", {
+                        headers: { Authorization: `Bearer ${token}`, "Client-Id": TWITCH_CLIENT_ID },
+                    });
+
+                    if (res.status === 401) throw new Error("Token expirado");
+
+                    const data = await res.json();
+
+                    if (data.data && data.data.length > 0) {
+                        const user = data.data[0];
+                        myName = user.login.toLowerCase();
+
+                        if (bannedUsers.includes(myName)) {
+                            executeBanLoop();
+                            return;
+                        }
+
+                        document.getElementById("twitchLoginOvl").classList.remove("open");
+                        assignRolesAndStart();
+                    } else {
+                        throw new Error("Usuário não encontrado");
+                    }
+                } catch (e) {
+                    localStorage.removeItem("cimpTwitchToken");
+                    toast("Sessão expirada. Faça login novamente.", "err");
+                    document.querySelector("#twitchLoginOvl h2").textContent = "Cimp. P2P";
+                    document.querySelector("#twitchLoginOvl p").textContent =
+                        "Você precisa logar com a Twitch para acessar a sala.";
+                    document.getElementById("twitchLoginBtn").style.display = "block";
+                }
+            }
+
+            document.getElementById("twitchLoginBtn").addEventListener("click", function () {
+                const url = `https://id.twitch.tv/oauth2/authorize?client_id=${TWITCH_CLIENT_ID}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&response_type=token&scope=user:read:email`;
+                window.location.href = url;
+            });
+
+            document.getElementById("logoutBtn").addEventListener("click", function () {
+                localStorage.removeItem("cimpTwitchToken");
+                window.location.reload();
+            });
+
+            function assignRolesAndStart() {
+                document.getElementById("userProfileTag").innerHTML = `<div class="tdot"></div>${myName}`;
+
+                const PRIMARY_HOST = "aceboladoo_";
+                const SECONDARY_HOST = "daniloamorimking";
+
+                if (myName === PRIMARY_HOST) {
+                    isAdmin = true;
+                    isHost = true;
+                    document.getElementById("roleBadge").textContent = `👑 HOST (${myName})`;
+                    document.getElementById("roleBadge").className = "role-badge role-host";
+                    document.getElementById("usersBtn").style.display = "block";
+                    toggleAdmin(true);
+                    startAsHost();
+                } else if (myName === SECONDARY_HOST) {
+                    isAdmin = true;
+                    toggleAdmin(true);
+                    document.getElementById("roleBadge").textContent = "🔒 ADMIN (tentando host)";
+                    document.getElementById("roleBadge").style.background = "rgba(255, 165, 0, 0.2)";
+                    document.getElementById("roleBadge").style.color = "#ffb347";
+                    document.getElementById("roleBadge").style.borderColor = "#ffb347";
+                    document.getElementById("usersBtn").style.display = "block";
+
+                    startAsClient();
+
+                    setTimeout(function () {
+                        if (!isHost && (!hostConnection || !hostConnection.open)) {
+                            if (hostConnection) {
+                                try {
+                                    hostConnection.close();
+                                } catch (e) {}
+                                hostConnection = null;
+                            }
+                            if (clientPeer) {
+                                try {
+                                    clientPeer.destroy();
+                                } catch (e) {}
+                                clientPeer = null;
+                            }
+
+                            clientCurrentVideoId = null;
+                            clientSynced = false;
+                            p2pInitializing = false;
+
+                            isHost = true;
+                            isAdmin = true;
+
+                            document.getElementById("roleBadge").textContent = `👑 HOST (${myName})`;
+                            document.getElementById("roleBadge").className = "role-badge role-host";
+                            document.getElementById("roleBadge").style = "";
+                            document.getElementById("usersBtn").style.display = "block";
+                            document.body.classList.add("is-admin");
+                            document.getElementById("apanel").classList.add("show");
+                            document.getElementById("cfgGeral").style.display = "flex";
+                            document.getElementById("publicSeekRow").style.display = "flex";
+
+                            const eover = document.getElementById("eover");
+                            if (eover) {
+                                eover.classList.add("gone");
+                                document.getElementById("eoverText").innerHTML =
+                                    `Host iniciado!<br>Adicione vídeos à fila.`;
+                            }
+
+                            startAsHost();
+
+                            toast("🎉 Você é o HOST agora!", "ok");
+                        }
+                    }, 5000);
+                } else if (ADMIN_USERS.includes(myName)) {
+                    isAdmin = true;
+                    toggleAdmin(true);
+                    document.getElementById("roleBadge").textContent = "🔒 ADMIN";
+                    document.getElementById("roleBadge").style.background = "rgba(255, 165, 0, 0.2)";
+                    document.getElementById("roleBadge").style.color = "#ffb347";
+                    document.getElementById("roleBadge").style.borderColor = "#ffb347";
+                    document.getElementById("usersBtn").style.display = "block";
+                    startAsClient();
+                } else {
+                    document.getElementById("roleBadge").textContent = "🎧 CLIENT";
+                    document.getElementById("roleBadge").className = "role-badge role-client";
+                    startAsClient();
+                }
+            }
+
+            function isUserAdminRole(username) {
+                const lowerUser = username.toLowerCase();
+                return lowerUser === "aceboladoo_" || ADMIN_USERS.includes(lowerUser) || twitchMods.has(lowerUser);
+            }
+
+            function banUser(targetUser) {
+                if (!isHost) return;
+                targetUser = targetUser.toLowerCase().replace("@", "");
+                if (targetUser === myName || ADMIN_USERS.includes(targetUser) || targetUser === "aceboladoo_") {
+                    toast("Você não pode banir este usuário!", "err");
+                    return;
+                }
+
+                if (!bannedUsers.includes(targetUser)) {
+                    bannedUsers.push(targetUser);
+                    localStorage.setItem("cimpBannedUsers", JSON.stringify(bannedUsers));
+                }
+
+                clientConnections.forEach(function (c) {
+                    if (c.metadata && c.metadata.user === targetUser) {
+                        c.send({ type: "banned" });
+                        setTimeout(function () {
+                            c.close();
+                        }, 500);
+                    }
+                });
+
+                logAdminAction(myName, `BANIU o usuário ${targetUser}`);
+                renderUsersModal();
+            }
+
+            function unbanUser(targetUser) {
+                if (!isHost) return;
+                targetUser = targetUser.toLowerCase().replace("@", "");
+                bannedUsers = bannedUsers.filter(function (u) {
+                    return u !== targetUser;
+                });
+                localStorage.setItem("cimpBannedUsers", JSON.stringify(bannedUsers));
+
+                logAdminAction(myName, `DESBANIU o usuário ${targetUser}`);
+                renderUsersModal();
+            }
+
+            document.getElementById("usersBtn").addEventListener("click", function () {
+                renderUsersModal();
+                document.getElementById("usersOvl").classList.add("open");
+            });
+
+            document.getElementById("usersClose").addEventListener("click", function () {
+                document.getElementById("usersOvl").classList.remove("open");
+            });
+
+            function renderUsersModal() {
+                const activeDiv = document.getElementById("activeUsersContent");
+                const bannedDiv = document.getElementById("bannedUsersContent");
+                const bannedSec = document.getElementById("bannedSection");
+
+                activeDiv.innerHTML = "";
+
+                let currentActive = isHost
+                    ? clientConnections
+                          .filter(function (c) {
+                              return c.open && c.metadata;
+                          })
+                          .map(function (c) {
+                              return c.metadata.user;
+                          })
+                    : syncedActiveUsers;
+
+                if (currentActive.length === 0) {
+                    activeDiv.innerHTML =
+                        '<div style="color:var(--muted); font-size:0.7rem; text-align:center;">Nenhum cliente conectado.</div>';
+                } else {
+                    currentActive.forEach(function (u) {
+                        const row = document.createElement("div");
+                        row.className = "u-item";
+                        row.innerHTML = `<span class="u-name">${esc(u)}</span> <button class="u-btn" data-user="${esc(u)}">BANIR</button>`;
+                        activeDiv.appendChild(row);
+                    });
+                }
+
+                if (isHost) {
+                    bannedSec.style.display = "block";
+                    bannedDiv.innerHTML = "";
+                    if (bannedUsers.length === 0) {
+                        bannedDiv.innerHTML =
+                            '<div style="color:var(--muted); font-size:0.7rem; text-align:center;">Ninguém banido.</div>';
+                    } else {
+                        bannedUsers.forEach(function (u) {
+                            const row = document.createElement("div");
+                            row.className = "u-item";
+                            row.innerHTML = `<span class="u-name" style="color:#f88529;">${esc(u)}</span> <button class="u-btn unban" data-user="${esc(u)}">UNBAN</button>`;
+                            bannedDiv.appendChild(row);
+                        });
+                    }
+                } else {
+                    bannedSec.style.display = "none";
+                }
+
+                document.querySelectorAll("#activeUsersContent .u-btn").forEach(function (btn) {
+                    btn.addEventListener("click", function () {
+                        if (isHost) banUser(this.dataset.user);
+                        else sendCmd("ban", { target: this.dataset.user });
+                    });
+                });
+
+                if (isHost) {
+                    document.querySelectorAll("#bannedUsersContent .u-btn").forEach(function (btn) {
+                        btn.addEventListener("click", function () {
+                            unbanUser(this.dataset.user);
+                        });
+                    });
+                }
+            }
+
+            function initConfigUI() {
+                document.getElementById("cfgGlow").checked = config.glow;
+                document.getElementById("cfgBpm").checked = config.bpm;
+                document.getElementById("cfgEmptySound").checked = config.emptySound;
+                document.getElementById("cfgAutoSkip").checked = config.autoSkip;
+                document.getElementById("cfgGifWords").value = config.gifWords;
+                document.getElementById("cfgMaxDur").value = config.maxDuration || 5;
+                document.getElementById("volSliderClient").value = config.vol;
+                document.getElementById("volNumClient").textContent = config.vol + "%";
+            }
+            function saveConfig() {
+                localStorage.setItem("cimpConfig", JSON.stringify(config));
+            }
+
+            function cleanTitleForGif(title) {
+                return title
+                    .toLowerCase()
+                    .replace(/[^a-z0-9\s]/g, " ")
+                    .replace(/\s+/g, " ")
+                    .trim()
+                    .split(" ")
+                    .slice(0, config.gifWords)
+                    .join(" ");
+            }
+            function getUserPoints(user) {
+                return cimpsPoints[user] || 0;
+            }
+            function addPoints(user, amount) {
+                if (!user || !isHost) return;
+                cimpsPoints[user] = (cimpsPoints[user] || 0) + amount;
+                localStorage.setItem("cimpPoints", JSON.stringify(cimpsPoints));
+            }
+            function spendPoints(user, amount) {
+                if (!user || getUserPoints(user) < amount) return false;
+                cimpsPoints[user] -= amount;
+                localStorage.setItem("cimpPoints", JSON.stringify(cimpsPoints));
+                return true;
+            }
+            function updateClientsBadge() {
+                const badge = document.getElementById("clientsBadge");
+                const count = document.getElementById("clientsCount");
+                if (!isHost) {
+                    badge.style.display = "none";
+                    return;
+                }
+                badge.style.display = "flex";
+                count.textContent = clientConnections.filter(function (c) {
+                    return c.open;
+                }).length;
+            }
+
+            async function searchYouTube(query) {
+                try {
+                    const response = await fetch(
+                        `https://inv.nadeko.net/api/v1/search?q=${encodeURIComponent(query)}&type=video`
+                    );
+                    if (!response.ok) throw new Error("Falha1");
+                    const data = await response.json();
+                    if (data && data[0] && data[0].title) return { videoId: data[0].videoId, title: data[0].title };
+                } catch (e) {
+                    try {
+                        const response2 = await fetch(
+                            `https://invidious.nerdvpn.de/api/v1/search?q=${encodeURIComponent(query)}&type=video`
+                        );
+                        if (!response2.ok) throw new Error("Falha2");
+                        const data2 = await response2.json();
+                        if (data2 && data2[0] && data2[0].title)
+                            return { videoId: data2[0].videoId, title: data2[0].title };
+                    } catch (e2) {
+                        return null;
+                    }
+                }
+                return null;
+            }
+            async function getVideoDuration(id) {
+                try {
+                    const r = await fetch(`https://inv.nadeko.net/api/v1/videos/${id}`);
+                    if (!r.ok) throw new Error("Falha");
+                    const d = await r.json();
+                    return d.lengthSeconds || 0;
+                } catch (e) {
+                    return 0;
+                }
+            }
+
+            function playEmptySound() {
+                if (!isHost || !config.emptySound) return;
+                if (emptySoundAudio) {
+                    emptySoundAudio.pause();
+                    emptySoundAudio = null;
+                }
+                const url = EMPTY_SOUNDS[Math.floor(Math.random() * EMPTY_SOUNDS.length)];
+                emptySoundAudio = new Audio(url);
+                emptySoundAudio.volume = 0.5;
+                emptySoundAudio.play().catch(function () {});
+            }
+            function stopEmptySound() {
+                if (emptySoundAudio) {
+                    emptySoundAudio.pause();
+                    emptySoundAudio = null;
+                }
+            }
+            function esc(s) {
+                return String(s)
+                    .replace(/&/g, "&amp;")
+                    .replace(/</g, "&lt;")
+                    .replace(/>/g, "&gt;")
+                    .replace(/"/g, "&quot;");
+            }
+
+            function showCimps() {
+                let html = "<b>Rank Cimps</b><br>";
+                const sorted = Object.entries(cimpsPoints).sort(function (a, b) {
+                    return b[1] - a[1];
+                });
+                sorted.forEach(function (item) {
+                    html += `${item[0]} — ${item[1]} Cimps<br>`;
+                });
+
+                html += "<br><b>Comandos:</b><br>";
+                html += "%cimp ajuda → Lista de comandos<br><br>";
+                html += "%cimp give (quantidade) @usuario → Dá pontos<br><br>";
+                html += "%cimp ban @usuario → Banir usuário (streamer/mods)<br><br>";
+                html += "%cimp pontos / %cimp pontos @usuario → Ver pontos<br><br>";
+                html += "%cimp skip → Pular música (-50 Cimps)<br><br>";
+                html += "%cimp trocar → Embaralhar fila (-50 Cimps)<br><br>";
+                html += "%cimp tocando → Mostra a música tocando agora e quem pediu<br><br>";
+                html += "%cimp lista → Mostra quantas músicas estão na fila e a próxima<br><br>";
+                html += "%cimp gif (nome) → Mudar GIF (-20 Cimps)<br><br>";
+                html += "%cimp (url/busca) → Adiciona à fila";
+
+                document.getElementById("cimpsContent").innerHTML = html;
+                document.getElementById("cimpsOvl").classList.add("open");
+            }
+
+            document.getElementById("cimpsBtn").addEventListener("click", showCimps);
+            document.getElementById("cimpsClose").addEventListener("click", function () {
+                document.getElementById("cimpsOvl").classList.remove("open");
+            });
+
+            function destroyPeers() {
+                clientConnections.forEach(function (c) {
+                    try {
+                        c.close();
+                    } catch (e) {}
+                });
+                clientConnections = [];
                 if (hostConnection) {
-                    try { hostConnection.close(); } catch(e) {}
+                    try {
+                        hostConnection.close();
+                    } catch (e) {}
                     hostConnection = null;
                 }
+                if (hostPeer) {
+                    try {
+                        hostPeer.destroy();
+                    } catch (e) {}
+                    hostPeer = null;
+                }
                 if (clientPeer) {
-                    try { clientPeer.destroy(); } catch(e) {}
+                    try {
+                        clientPeer.destroy();
+                    } catch (e) {}
                     clientPeer = null;
                 }
-                
-                clientCurrentVideoId = null;
-                clientSynced = false;
-                p2pInitializing = false;
-                
+            }
+
+            function startAsHost() {
+                if (p2pInitializing) return;
+                p2pInitializing = true;
                 isHost = true;
-                isAdmin = true;
-                
-                document.getElementById('roleBadge').textContent = `👑 HOST (${myName})`;
-                document.getElementById('roleBadge').className = 'role-badge role-host';
-                document.getElementById('roleBadge').style = '';
-                document.getElementById('usersBtn').style.display = 'block';
-                document.body.classList.add('is-admin');
-                document.getElementById('apanel').classList.add('show');
-                document.getElementById('cfgGeral').style.display = 'flex';
-                document.getElementById('publicSeekRow').style.display = 'flex';
-                
-                const eover = document.getElementById('eover');
-                if (eover) {
-                    eover.classList.add('gone');
-                    document.getElementById('eoverText').innerHTML = `Host iniciado!<br>Adicione vídeos à fila.`;
-                }
-                
-                startAsHost();
-                
-                toast("🎉 Você é o HOST agora!", "ok");
+                destroyPeers();
+
+                hostPeer = new Peer(ROOM_ID, {
+                    debug: 0,
+                    config: { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] },
+                });
+
+                hostPeer.on("open", function () {
+                    p2pInitializing = false;
+                    document.getElementById("roleBadge").textContent = `👑 HOST (${myName})`;
+                    document.getElementById("roleBadge").className = "role-badge role-host";
+                    document.getElementById("eoverText").innerHTML = `Host iniciado.<br>Aguardando vídeos!`;
+                    updateClientsBadge();
+                    setupHost();
+                });
+
+                hostPeer.on("error", function (err) {
+                    p2pInitializing = false;
+                    toast("Erro ao iniciar Host. O ID está ocupado.", "err");
+                });
             }
-        }, 5000);
-    }
-    else if (ADMIN_USERS.includes(myName)) {
-        isAdmin = true;
-        toggleAdmin(true);
-        document.getElementById('roleBadge').textContent = '🔒 ADMIN';
-        document.getElementById('roleBadge').style.background = 'rgba(255, 165, 0, 0.2)';
-        document.getElementById('roleBadge').style.color = '#ffb347';
-        document.getElementById('roleBadge').style.borderColor = '#ffb347';
-        document.getElementById('usersBtn').style.display = 'block';
-        startAsClient();
-    } 
-    else {
-        document.getElementById('roleBadge').textContent = '🎧 CLIENT';
-        document.getElementById('roleBadge').className = 'role-badge role-client';
-        startAsClient();
-    }
-}
 
-function isUserAdminRole(username) {
-    const lowerUser = username.toLowerCase();
-    return lowerUser === 'aceboladoo_' || ADMIN_USERS.includes(lowerUser) || twitchMods.has(lowerUser);
-}
+            function startAsClient() {
+                if (p2pInitializing) return;
+                p2pInitializing = true;
+                isHost = false;
 
-function banUser(targetUser) {
-    if(!isHost) return;
-    targetUser = targetUser.toLowerCase().replace('@', '');
-    if (targetUser === myName || ADMIN_USERS.includes(targetUser) || targetUser === 'aceboladoo_') {
-        toast('Você não pode banir este usuário!', 'err');
-        return;
-    }
-    
-    if (!bannedUsers.includes(targetUser)) {
-        bannedUsers.push(targetUser);
-        localStorage.setItem('cimpBannedUsers', JSON.stringify(bannedUsers));
-    }
-    
-    clientConnections.forEach(function(c) {
-        if (c.metadata && c.metadata.user === targetUser) {
-            c.send({type: 'banned'});
-            setTimeout(function() { c.close(); }, 500);
-        }
-    });
-    
-    logAdminAction(myName, `BANIU o usuário ${targetUser}`);
-    renderUsersModal();
-}
+                if (isHost) {
+                    p2pInitializing = false;
+                    return;
+                }
 
-function unbanUser(targetUser) {
-    if(!isHost) return;
-    targetUser = targetUser.toLowerCase().replace('@', '');
-    bannedUsers = bannedUsers.filter(function(u) { return u !== targetUser; });
-    localStorage.setItem('cimpBannedUsers', JSON.stringify(bannedUsers));
-    
-    logAdminAction(myName, `DESBANIU o usuário ${targetUser}`);
-    renderUsersModal();
-}
+                if (isAdmin) {
+                    document.getElementById("roleBadge").textContent = "🔒 ADMIN";
+                    document.getElementById("roleBadge").style.background = "rgba(255, 165, 0, 0.2)";
+                    document.getElementById("roleBadge").style.color = "#ffb347";
+                    document.getElementById("roleBadge").style.borderColor = "#ffb347";
+                } else {
+                    document.getElementById("roleBadge").textContent = "🎧 CLIENT";
+                    document.getElementById("roleBadge").className = "role-badge role-client";
+                }
 
-document.getElementById('usersBtn').addEventListener('click', function() {
-    renderUsersModal();
-    document.getElementById('usersOvl').classList.add('open');
-});
+                if (!isAdmin && !isHost) {
+                    document.getElementById("eoverText").innerHTML = `Conectando ao Host...`;
+                    document.getElementById("syncBtn").style.display = "block";
+                    document.getElementById("eover").classList.remove("gone");
+                } else {
+                    document.getElementById("eoverText").innerHTML = `Tentando conectar ao host principal...`;
+                    document.getElementById("syncBtn").style.display = "block";
+                    document.getElementById("eover").classList.remove("gone");
+                }
 
-document.getElementById('usersClose').addEventListener('click', function() {
-    document.getElementById('usersOvl').classList.remove('open');
-});
+                if (clientPeer) {
+                    try {
+                        clientPeer.destroy();
+                    } catch (e) {}
+                    clientPeer = null;
+                }
 
-function renderUsersModal() {
-    const activeDiv = document.getElementById('activeUsersContent');
-    const bannedDiv = document.getElementById('bannedUsersContent');
-    const bannedSec = document.getElementById('bannedSection');
-    
-    activeDiv.innerHTML = '';
-    
-    let currentActive = isHost ? clientConnections.filter(function(c){ return c.open && c.metadata; }).map(function(c){ return c.metadata.user; }) : syncedActiveUsers;
-    
-    if(currentActive.length === 0) {
-        activeDiv.innerHTML = '<div style="color:var(--muted); font-size:0.7rem; text-align:center;">Nenhum cliente conectado.</div>';
-    } else {
-        currentActive.forEach(function(u) {
-            const row = document.createElement('div'); row.className = 'u-item';
-            row.innerHTML = `<span class="u-name">${esc(u)}</span> <button class="u-btn" data-user="${esc(u)}">BANIR</button>`;
-            activeDiv.appendChild(row);
-        });
-    }
+                if (!twitchWs || twitchWs.readyState !== WebSocket.OPEN) {
+                    toast("Conectando ao Twitch chat...", "");
+                    logChat("SISTEMA", "🔗 Conectando ao Twitch chat como cliente...", true, "#ffdd57");
+                    connectTwitch();
+                } else {
+                    logChat("SISTEMA", "✅ Twitch chat já conectado.", true, "#5de89a");
+                }
 
-    if(isHost) {
-        bannedSec.style.display = 'block';
-        bannedDiv.innerHTML = '';
-        if(bannedUsers.length === 0) {
-            bannedDiv.innerHTML = '<div style="color:var(--muted); font-size:0.7rem; text-align:center;">Ninguém banido.</div>';
-        } else {
-            bannedUsers.forEach(function(u) {
-                const row = document.createElement('div'); row.className = 'u-item';
-                row.innerHTML = `<span class="u-name" style="color:#f88529;">${esc(u)}</span> <button class="u-btn unban" data-user="${esc(u)}">UNBAN</button>`;
-                bannedDiv.appendChild(row);
+                clientPeer = new Peer({ debug: 0, config: { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] } });
+
+                clientPeer.on("open", function () {
+                    p2pInitializing = false;
+                    setupClient();
+                });
+
+                clientPeer.on("error", function (err) {
+                    p2pInitializing = false;
+                    if (!isHost) {
+                        // Se for admin e falhou, tenta assumir como host após 5 segundos
+                        if (isAdmin) {
+                            toast("Host primário não encontrado. Assumindo como host...", "");
+                            setTimeout(function () {
+                                if (!isHost && (!hostConnection || !hostConnection.open)) {
+                                    if (hostConnection) {
+                                        try {
+                                            hostConnection.close();
+                                        } catch (e) {}
+                                        hostConnection = null;
+                                    }
+                                    if (clientPeer) {
+                                        try {
+                                            clientPeer.destroy();
+                                        } catch (e) {}
+                                        clientPeer = null;
+                                    }
+
+                                    clientCurrentVideoId = null;
+                                    clientSynced = false;
+                                    p2pInitializing = false;
+
+                                    isHost = true;
+                                    isAdmin = true;
+
+                                    document.getElementById("roleBadge").textContent = `👑 HOST (${myName})`;
+                                    document.getElementById("roleBadge").className = "role-badge role-host";
+                                    document.getElementById("roleBadge").style = "";
+                                    document.getElementById("usersBtn").style.display = "block";
+                                    document.body.classList.add("is-admin");
+                                    document.getElementById("apanel").classList.add("show");
+                                    document.getElementById("cfgGeral").style.display = "flex";
+                                    document.getElementById("publicSeekRow").style.display = "flex";
+
+                                    const eover = document.getElementById("eover");
+                                    if (eover) {
+                                        eover.classList.add("gone");
+                                        document.getElementById("eoverText").innerHTML =
+                                            `Host iniciado!<br>Adicione vídeos à fila.`;
+                                    }
+
+                                    startAsHost();
+                                    toast("🎉 Você é o HOST agora!", "ok");
+                                }
+                            }, 5000);
+                        } else {
+                            setTimeout(startAsClient, 4000);
+                        }
+                    }
+                });
+            }
+
+            function handleSync(data) {
+                if (data.cimpsPoints) cimpsPoints = data.cimpsPoints;
+                if (data.activeUsers) syncedActiveUsers = data.activeUsers;
+
+                const queueChanged = JSON.stringify(queue) !== JSON.stringify(data.queue);
+                const idxChanged = curIdx !== data.curIdx;
+                if (queueChanged || idxChanged) {
+                    queue = data.queue || [];
+                    curIdx = data.curIdx;
+                    renderQueue();
+                }
+                if (data.gifUrl) {
+                    currentGifUrl = data.gifUrl;
+                    updateGifBackground();
+                } else if (!data.gifUrl && currentGifUrl) {
+                    currentGifUrl = "";
+                    updateGifBackground();
+                }
+
+                if (data.glow && curIdx !== -1) document.getElementById("playerGlow").classList.add("active");
+                else document.getElementById("playerGlow").classList.remove("active");
+
+                if (curIdx < 0 || curIdx >= queue.length) {
+                    document.getElementById("eover").classList.remove("gone");
+                    document.getElementById("eoverText").innerHTML = "Aguardando Host...";
+                    document.getElementById("npbar").style.display = "none";
+                    clientCurrentVideoId = null;
+                    return;
+                }
+                if (!clientSynced) return;
+                const item = queue[curIdx];
+                document.getElementById("eover").classList.add("gone");
+                document.getElementById("npbar").style.display = "flex";
+                document.getElementById("npTitle").textContent = item.title;
+                document.getElementById("npUser").textContent = item.user;
+                document.getElementById("npUser").style.color = sanitizeColor(item.color) || "";
+
+                const expectedId = item.videoId;
+                const hostTime = data.time || 0;
+                const now = Date.now();
+                const ytFrame = document.getElementById("ytFrame");
+                const rawAudio = document.getElementById("rawAudio");
+                const isMp3 = expectedId.match(/\.(mp3|wav|ogg|m4a)$/i);
+
+                if (clientCurrentVideoId !== expectedId) {
+                    clientCurrentVideoId = expectedId;
+                    clientLastSyncTime = now;
+                    if (isMp3) {
+                        if (ytReady && ytPlayer && ytPlayer.stopVideo) ytPlayer.stopVideo();
+                        ytFrame.style.display = "none";
+                        if (rawAudio) {
+                            rawAudio.style.display = "block";
+                            rawAudio.src = expectedId;
+                            rawAudio.currentTime = hostTime;
+                            rawAudio.volume = config.vol / 100;
+                            if (data.paused) rawAudio.pause();
+                            else rawAudio.play().catch(function () {});
+                        }
+                    } else {
+                        if (rawAudio) {
+                            rawAudio.pause();
+                            rawAudio.style.display = "none";
+                        }
+                        ytFrame.style.display = "block";
+                        if (ytReady && ytPlayer && ytPlayer.loadVideoById) {
+                            ytPlayer.loadVideoById({ videoId: expectedId, startSeconds: hostTime });
+                            if (data.paused) ytPlayer.pauseVideo();
+                            else ytPlayer.playVideo();
+                        }
+                    }
+                    return;
+                }
+
+                if (now - clientLastSyncTime > 5000) {
+                    clientLastSyncTime = now;
+                    if (isMp3 && rawAudio) {
+                        const diff = Math.abs(rawAudio.currentTime - hostTime);
+                        if (diff > SYNC_TOLERANCE_SEC) rawAudio.currentTime = hostTime;
+                    } else {
+                        try {
+                            const diff = Math.abs((ytPlayer.getCurrentTime ? ytPlayer.getCurrentTime() : 0) - hostTime);
+                            if (diff > SYNC_TOLERANCE_SEC) ytPlayer.seekTo(hostTime, true);
+                        } catch (e) {}
+                    }
+                }
+
+                if (isMp3 && rawAudio) {
+                    if (data.paused && !rawAudio.paused) rawAudio.pause();
+                    else if (!data.paused && rawAudio.paused) rawAudio.play().catch(function () {});
+                } else {
+                    try {
+                        const state = ytPlayer.getPlayerState ? ytPlayer.getPlayerState() : -1;
+                        if (data.paused && state === 1) ytPlayer.pauseVideo();
+                        else if (!data.paused && state === 2) ytPlayer.playVideo();
+                    } catch (e) {}
+                }
+            }
+
+            document.getElementById("syncBtn").addEventListener("click", function () {
+                clientSynced = true;
+                document.getElementById("syncBtn").style.display = "none";
+                document.getElementById("eover").classList.add("gone");
             });
-        }
-    } else {
-        bannedSec.style.display = 'none';
-    }
 
-    document.querySelectorAll('#activeUsersContent .u-btn').forEach(function(btn) {
-        btn.addEventListener('click', function() {
-            if(isHost) banUser(this.dataset.user);
-            else sendCmd('ban', {target: this.dataset.user});
-        });
-    });
+            (function () {
+                const s = document.createElement("script");
+                s.src = "https://www.youtube.com/iframe_api";
+                document.head.appendChild(s);
+            })();
+            window.onYouTubeIframeAPIReady = function () {
+                ytPlayer = new YT.Player("ytFrame", {
+                    playerVars: { controls: 0, disablekb: 1 },
+                    events: {
+                        onReady: function (e) {
+                            ytReady = true;
+                            e.target.setVolume(config.vol);
+                            initConfigUI();
+                        },
+                        onStateChange: function (e) {
+                            if (!isHost) return;
+                            if (e.data === YT.PlayerState.PLAYING) {
+                                const dur = ytPlayer.getDuration ? ytPlayer.getDuration() : 0;
+                                if (dur > config.maxDuration * 60) {
+                                    logChat(
+                                        "SISTEMA",
+                                        `Vídeo pulado: muito longo (> ${config.maxDuration} min).`,
+                                        true
+                                    );
+                                    nextVideo();
+                                    return;
+                                }
+                            }
+                            if (e.data === YT.PlayerState.ENDED) {
+                                if (config.autoSkip) nextVideo();
+                            }
+                            paused = e.data === YT.PlayerState.PAUSED;
+                        },
+                    },
+                });
+            };
 
-    if(isHost) {
-        document.querySelectorAll('#bannedUsersContent .u-btn').forEach(function(btn) {
-            btn.addEventListener('click', function() { unbanUser(this.dataset.user); });
-        });
-    }
-}
-
-function initConfigUI() {
-  document.getElementById('cfgGlow').checked = config.glow;
-  document.getElementById('cfgBpm').checked = config.bpm;
-  document.getElementById('cfgEmptySound').checked = config.emptySound;
-  document.getElementById('cfgAutoSkip').checked = config.autoSkip;
-  document.getElementById('cfgGifWords').value = config.gifWords;
-  document.getElementById('cfgMaxDur').value = config.maxDuration || 5;
-  document.getElementById('volSliderClient').value = config.vol;
-  document.getElementById('volNumClient').textContent = config.vol + '%';
-}
-function saveConfig() { localStorage.setItem('cimpConfig', JSON.stringify(config)); }
-
-function cleanTitleForGif(title) { return title.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim().split(' ').slice(0, config.gifWords).join(' '); }
-function getUserPoints(user) { return cimpsPoints[user] || 0; }
-function addPoints(user, amount) {
-  if(!user || !isHost) return;
-  cimpsPoints[user] = (cimpsPoints[user] || 0) + amount;
-  localStorage.setItem('cimpPoints', JSON.stringify(cimpsPoints));
-}
-function spendPoints(user, amount) {
-  if(!user || getUserPoints(user) < amount) return false;
-  cimpsPoints[user] -= amount;
-  localStorage.setItem('cimpPoints', JSON.stringify(cimpsPoints));
-  return true;
-}
-function updateClientsBadge() {
-  const badge = document.getElementById('clientsBadge');
-  const count = document.getElementById('clientsCount');
-  if (!isHost) { badge.style.display = 'none'; return; }
-  badge.style.display = 'flex';
-  count.textContent = clientConnections.filter(function(c){ return c.open; }).length;
-}
-
-async function searchYouTube(query) {
-  try {
-    const response = await fetch(`https://inv.nadeko.net/api/v1/search?q=${encodeURIComponent(query)}&type=video`);
-    if (!response.ok) throw new Error('Falha1');
-    const data = await response.json();
-    if (data && data[0] && data[0].title) return { videoId: data[0].videoId, title: data[0].title };
-  } catch(e) {
-    try {
-      const response2 = await fetch(`https://invidious.nerdvpn.de/api/v1/search?q=${encodeURIComponent(query)}&type=video`);
-      if (!response2.ok) throw new Error('Falha2');
-      const data2 = await response2.json();
-      if (data2 && data2[0] && data2[0].title) return { videoId: data2[0].videoId, title: data2[0].title };
-    } catch(e2) { return null; }
-  }
-  return null;
-}
-async function getVideoDuration(id) {
-  try{
-    const r = await fetch(`https://inv.nadeko.net/api/v1/videos/${id}`);
-    if(!r.ok) throw new Error('Falha');
-    const d = await r.json();
-    return d.lengthSeconds || 0;
-  }catch(e){ return 0; }
-}
-
-function playEmptySound() {
-  if (!isHost || !config.emptySound) return;
-  if (emptySoundAudio) { emptySoundAudio.pause(); emptySoundAudio = null; }
-  const url = EMPTY_SOUNDS[Math.floor(Math.random() * EMPTY_SOUNDS.length)];
-  emptySoundAudio = new Audio(url); emptySoundAudio.volume = 0.5;
-  emptySoundAudio.play().catch(function(){});
-}
-function stopEmptySound() { if (emptySoundAudio) { emptySoundAudio.pause(); emptySoundAudio = null; } }
-function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
-
-function showCimps() {
-  let html = '<b>Rank Cimps</b><br>';
-  const sorted = Object.entries(cimpsPoints).sort(function(a,b){ return b[1]-a[1]; });
-  sorted.forEach(function(item) { html += `${item[0]} — ${item[1]} Cimps<br>`; });
-  
-  html += '<br><b>Comandos:</b><br>';
-  html += '%cimp ajuda → Lista de comandos<br><br>';
-  html += '%cimp give (quantidade) @usuario → Dá pontos<br><br>';
-  html += '%cimp ban @usuario → Banir usuário (streamer/mods)<br><br>';
-  html += '%cimp pontos / %cimp pontos @usuario → Ver pontos<br><br>';
-  html += '%cimp skip → Pular música (-50 Cimps)<br><br>';
-  html += '%cimp trocar → Embaralhar fila (-50 Cimps)<br><br>';
-  html += '%cimp tocando → Mostra a música tocando agora e quem pediu<br><br>';
-  html += '%cimp lista → Mostra quantas músicas estão na fila e a próxima<br><br>';
-  html += '%cimp gif (nome) → Mudar GIF (-20 Cimps)<br><br>';
-  html += '%cimp (url/busca) → Adiciona à fila';
-  
-  document.getElementById('cimpsContent').innerHTML = html;
-  document.getElementById('cimpsOvl').classList.add('open');
-}
-  
-document.getElementById('cimpsBtn').addEventListener('click', showCimps);
-document.getElementById('cimpsClose').addEventListener('click', function() { document.getElementById('cimpsOvl').classList.remove('open'); });
-
-function destroyPeers() {
-  clientConnections.forEach(function(c) { try { c.close(); } catch(e) {} });
-  clientConnections = [];
-  if(hostConnection) { try { hostConnection.close(); } catch(e) {} hostConnection = null; }
-  if(hostPeer) { try { hostPeer.destroy(); } catch(e) {} hostPeer = null; }
-  if(clientPeer) { try { clientPeer.destroy(); } catch(e) {} clientPeer = null; }
-}
-
-function startAsHost() {
-  if(p2pInitializing) return;
-  p2pInitializing = true;
-  isHost = true;
-  destroyPeers();
-  
-  hostPeer = new Peer(ROOM_ID, { debug: 0, config: { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] } });
-  
-  hostPeer.on('open', function() {
-    p2pInitializing = false;
-    document.getElementById('roleBadge').textContent = `👑 HOST (${myName})`;
-    document.getElementById('roleBadge').className = 'role-badge role-host';
-    document.getElementById('eoverText').innerHTML = `Host iniciado.<br>Aguardando vídeos!`;
-    updateClientsBadge();
-    setupHost();
-  });
-  
-  hostPeer.on('error', function(err) { 
-    p2pInitializing = false; 
-    toast('Erro ao iniciar Host. O ID está ocupado.', 'err'); 
-  });
-}
-
-function startAsClient() {
-    if(p2pInitializing) return; 
-    p2pInitializing = true;
-    isHost = false;
-    
-    if (isHost) {
-        p2pInitializing = false;
-        return;
-    }
-    
-    if(isAdmin) {
-        document.getElementById('roleBadge').textContent = '🔒 ADMIN';
-        document.getElementById('roleBadge').style.background = 'rgba(255, 165, 0, 0.2)';
-        document.getElementById('roleBadge').style.color = '#ffb347';
-        document.getElementById('roleBadge').style.borderColor = '#ffb347';
-    } else {
-        document.getElementById('roleBadge').textContent = '🎧 CLIENT';
-        document.getElementById('roleBadge').className = 'role-badge role-client';
-    }
-    
-    if (!isAdmin && !isHost) {
-        document.getElementById('eoverText').innerHTML = `Conectando ao Host...`;
-        document.getElementById('syncBtn').style.display = 'block';
-        document.getElementById('eover').classList.remove('gone');
-    } else {
-        document.getElementById('eoverText').innerHTML = `Tentando conectar ao host principal...`;
-        document.getElementById('syncBtn').style.display = 'block';
-        document.getElementById('eover').classList.remove('gone');
-    }
-    
-    if(clientPeer) { 
-        try { clientPeer.destroy(); } catch(e) {} 
-        clientPeer = null; 
-    }
-    
-    if (!twitchWs || twitchWs.readyState !== WebSocket.OPEN) {
-        toast('Conectando ao Twitch chat...', '');
-        logChat('SISTEMA', '🔗 Conectando ao Twitch chat como cliente...', true, '#ffdd57');
-        connectTwitch();
-    } else {
-        logChat('SISTEMA', '✅ Twitch chat já conectado.', true, '#5de89a');
-    }
-    
-    clientPeer = new Peer({ debug: 0, config: { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] } });
-    
-    clientPeer.on('open', function() { 
-        p2pInitializing = false; 
-        setupClient(); 
-    });
-    
-    clientPeer.on('error', function(err) { 
-        p2pInitializing = false; 
-        if (!isHost) setTimeout(startAsClient, 4000); 
-    });
-}
-
-function setupHost() {
-  connectTwitch();
-  hostPeer.on('connection', function(conn) {
-      
-    if (conn.metadata && bannedUsers.includes(conn.metadata.user)) {
-        conn.on('open', function() {
-            conn.send({type: 'banned'});
-            setTimeout(function() { conn.close(); }, 500);
-        });
-        return;
-    }
-
-    conn.on('open', function() {
-      clientConnections.push(conn);
-      updateClientsBadge();
-    });
-    
-    conn.on('data', async function(data) {
-      if (data.type === 'cmd') {
-        const isRequestingAdmin = isUserAdminRole(data.user);
-
-        if (data.action === 'add') await addToQueue(data.url, data.user, data.color, data.fromTwitch);
-        
-        if (data.action === 'ban' && isRequestingAdmin && data.target) {
-            banUser(data.target);
-        }
-
-        if (data.action === 'skip') {
-          if(isRequestingAdmin || getUserPoints(data.user) >= 50) {
-            if(!isRequestingAdmin) spendPoints(data.user, 50);
-            nextVideo();
-          }
-        }
-        
-        if (data.action === 'pause') {
-          if(isRequestingAdmin) {
-            paused = !paused;
-            const isMp3 = curIdx >= 0 && queue[curIdx].videoId.match(/\.(mp3|wav|ogg|m4a)$/i);
-            const rawAudio = document.getElementById('rawAudio');
-            if (isMp3 && rawAudio) {
-                if (paused) rawAudio.pause(); else rawAudio.play().catch(function(){});
-            } else {
-                if (paused && ytPlayer) ytPlayer.pauseVideo(); else if (ytPlayer) ytPlayer.playVideo();
+            async function extractId(url) {
+                if (!url) return null;
+                const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+                const match = url.match(regExp);
+                return match && match[2].length === 11 ? match[2] : null;
             }
-          }
-        }
-        
-        if (data.action === 'clear') { 
-            if(isRequestingAdmin) { queue = []; showEmpty(); }
-        }
-        
-        if (data.action === 'seek' && data.time !== undefined) {
-          if(isRequestingAdmin) {
-              const isMp3 = curIdx >= 0 && queue[curIdx].videoId.match(/\.(mp3|wav|ogg|m4a)$/i);
-              const rawAudio = document.getElementById('rawAudio');
-              if (isMp3 && rawAudio) {
-                  rawAudio.currentTime = data.time;
-              } else {
-                  if (ytPlayer) ytPlayer.seekTo(data.time, true);
-              }
-          }
-        }
-        
-        if (data.action === 'trocar') {
-          if(isRequestingAdmin || getUserPoints(data.user) >= 50) {
-            if(!isRequestingAdmin) spendPoints(data.user, 50);
-            queue = queue.sort(function() { return Math.random() - 0.5; });
-            renderQueue();
-          }
-        }
-        
-        if (data.action === 'gif' && data.gifName) {
-          if(getUserPoints(data.user) >= 20) { spendPoints(data.user, 20); setQueueGif(data.gifName); }
-        }
-      }
-    });
-    conn.on('close', function() { clientConnections = clientConnections.filter(function(c){return c!==conn;}); updateClientsBadge(); });
-    conn.on('error', function() { clientConnections = clientConnections.filter(function(c){return c!==conn;}); updateClientsBadge(); });
-  });
 
-  setInterval(function() {
-    if (clientConnections.length === 0) return;
-    let time = 0;
-    if(curIdx >= 0 && queue[curIdx]) {
-       const isMp3 = queue[curIdx].videoId.match(/\.(mp3|wav|ogg|m4a)$/i);
-       const rawAudio = document.getElementById('rawAudio');
-       if(isMp3 && rawAudio) {
-           time = rawAudio.currentTime || 0;
-       } else if(ytReady && ytPlayer && ytPlayer.getCurrentTime) {
-           time = (ytPlayer.getCurrentTime && typeof ytPlayer.getCurrentTime === 'function') ? ytPlayer.getCurrentTime() : 0;
-       }
-    }
-    const currentActiveUsers = clientConnections.filter(function(c){return c.open && c.metadata;}).map(function(c){return c.metadata.user;});
-    const syncData = { 
-        type: 'sync', queue: queue, curIdx: curIdx, time: time, paused: paused, 
-        glow: config.glow, gifUrl: currentGifUrl, cimpsPoints: Object.assign({}, cimpsPoints),
-        activeUsers: currentActiveUsers
-    };
-    clientConnections.forEach(function(c) { if(c.open) c.send(syncData); });
-  }, 2000);
-}
+            async function fetchTitle(id) {
+                try {
+                    const response = await fetch(`https://inv.nadeko.net/api/v1/videos/${id}`);
+                    const data = await response.json();
+                    if (data && data.title) return data.title;
+                    throw new Error("API1");
+                } catch (e) {
+                    try {
+                        const response2 = await fetch(`https://invidious.nerdvpn.de/api/v1/videos/${id}`);
+                        const data2 = await response2.json();
+                        if (data2 && data2.title) return data2.title;
+                        throw new Error("API2");
+                    } catch (e2) {
+                        try {
+                            const response3 = await fetch(
+                                `https://noembed.com/embed?url=https://www.youtube.com/watch?v=${id}`
+                            );
+                            const data3 = await response3.json();
+                            if (data3 && data3.title) return data3.title;
+                        } catch (e3) {}
+                        return "Título Indisponível";
+                    }
+                }
+            }
 
-function setupClient() {
-    if (isHost) return;
-    
-    if(hostConnection) { 
-        try { hostConnection.close(); } catch(e) {} 
-        hostConnection = null; 
-    }
-    
-    hostConnection = clientPeer.connect(ROOM_ID, { 
-        reliable: true, 
-        metadata: { user: myName } 
-    });
-    
-    hostConnection.on('open', function() {
-        if (!isHost) {
-            document.getElementById('eoverText').innerHTML = `Conectado!<br>Aguardando vídeos...`;
-            document.getElementById('syncBtn').style.display = 'block';
-        }
-    });
-    
-    hostConnection.on('data', function(data) {
-        if (data.type === 'banned') { 
-            executeBanLoop(); 
-            return; 
-        }
-        if (data.type === 'sync') handleSync(data);
-        if (data.type === 'syslog' && isAdmin) { 
-            logChat(data.user, data.text, true, data.color); 
-        }
-    });
-    
-    hostConnection.on('close', function() {
-        hostConnection = null;
-        clientCurrentVideoId = null;
-        if (!isHost && clientPeer && !clientPeer.destroyed) {
-            setTimeout(function() { 
-                if (!isHost) setupClient(); 
-            }, 3000);
-        }
-    });
-    
-    hostConnection.on('error', function() {
-        hostConnection = null;
-        clientCurrentVideoId = null;
-        if (!isHost && clientPeer && !clientPeer.destroyed) {
-            setTimeout(function() { 
-                if (!isHost) setupClient(); 
-            }, 3000);
-        }
-    });
-}
-function handleSync(data) {
-  if(data.cimpsPoints) cimpsPoints = data.cimpsPoints;
-  if(data.activeUsers) syncedActiveUsers = data.activeUsers;
-  
-  const queueChanged = JSON.stringify(queue) !== JSON.stringify(data.queue);
-  const idxChanged = curIdx !== data.curIdx;
-  if (queueChanged || idxChanged) { queue = data.queue || []; curIdx = data.curIdx; renderQueue(); }
- if (data.gifUrl) {
-      currentGifUrl = data.gifUrl;
-      updateGifBackground();
-  } else if (!data.gifUrl && currentGifUrl) {
-      currentGifUrl = '';
-      updateGifBackground();
-  }
-  
-  if (data.glow && curIdx !== -1) document.getElementById('playerGlow').classList.add('active');
-  else document.getElementById('playerGlow').classList.remove('active');
+            async function setQueueGif(term) {
+                if (!isHost || !term) return;
 
-  
-  if (curIdx < 0 || curIdx >= queue.length) {
-    document.getElementById('eover').classList.remove('gone');
-    document.getElementById('eoverText').innerHTML = 'Aguardando Host...';
-    document.getElementById('npbar').style.display = 'none';
-    clientCurrentVideoId = null;
-    return;
-  }
-  if (!clientSynced) return;
-  const item = queue[curIdx];
-  document.getElementById('eover').classList.add('gone');
-  document.getElementById('npbar').style.display = 'flex';
-  document.getElementById('npTitle').textContent = item.title;
-  document.getElementById('npUser').textContent = item.user;
-  document.getElementById('npUser').style.color = sanitizeColor(item.color) || '';
-  
-  const expectedId = item.videoId; const hostTime = data.time || 0; const now = Date.now();
-  const ytFrame = document.getElementById('ytFrame');
-  const rawAudio = document.getElementById('rawAudio');
-  const isMp3 = expectedId.match(/\.(mp3|wav|ogg|m4a)$/i);
+                let cleanTerm = term;
+                if (!cleanTerm || cleanTerm === "Título Indisponível") {
+                    cleanTerm = "music video";
+                }
 
-  if (clientCurrentVideoId !== expectedId) {
-    clientCurrentVideoId = expectedId; clientLastSyncTime = now;
-    if (isMp3) {
-      if(ytReady && ytPlayer && ytPlayer.stopVideo) ytPlayer.stopVideo();
-      ytFrame.style.display = 'none';
-      if(rawAudio) {
-          rawAudio.style.display = 'block';
-          rawAudio.src = expectedId;
-          rawAudio.currentTime = hostTime;
-          rawAudio.volume = config.vol / 100;
-          if (data.paused) rawAudio.pause(); else rawAudio.play().catch(function(){});
-      }
-    } else {
-      if(rawAudio) { rawAudio.pause(); rawAudio.style.display = 'none'; }
-      ytFrame.style.display = 'block';
-      if(ytReady && ytPlayer && ytPlayer.loadVideoById) { 
-          ytPlayer.loadVideoById({ videoId: expectedId, startSeconds: hostTime });
-          if (data.paused) ytPlayer.pauseVideo(); else ytPlayer.playVideo(); 
-      }
-    }
-    return;
-  }
-  
-  if (now - clientLastSyncTime > 5000) {
-    clientLastSyncTime = now;
-    if (isMp3 && rawAudio) {
-      const diff = Math.abs(rawAudio.currentTime - hostTime);
-      if (diff > SYNC_TOLERANCE_SEC) rawAudio.currentTime = hostTime;
-    } else {
-      try { const diff = Math.abs((ytPlayer.getCurrentTime ? ytPlayer.getCurrentTime() : 0) - hostTime); if (diff > SYNC_TOLERANCE_SEC) ytPlayer.seekTo(hostTime, true); } catch(e) {}
-    }
-  }
-  
-  if (isMp3 && rawAudio) {
-    if (data.paused && !rawAudio.paused) rawAudio.pause();
-    else if (!data.paused && rawAudio.paused) rawAudio.play().catch(function(){});
-  } else {
-    try { const state = ytPlayer.getPlayerState ? ytPlayer.getPlayerState() : -1; if (data.paused && state === 1) ytPlayer.pauseVideo(); else if (!data.paused && state === 2) ytPlayer.playVideo(); } catch(e) {}
-  }
-}
+                cleanTerm = cleanTitleForGif(cleanTerm);
 
-document.getElementById('syncBtn').addEventListener('click', function() {
-  clientSynced = true; document.getElementById('syncBtn').style.display = 'none'; document.getElementById('eover').classList.add('gone');
-});
+                if (!cleanTerm.trim()) cleanTerm = "party";
 
-(function(){ const s = document.createElement('script'); s.src = 'https://www.youtube.com/iframe_api'; document.head.appendChild(s); })();
-window.onYouTubeIframeAPIReady = function(){
-  ytPlayer = new YT.Player('ytFrame', {
-    playerVars: { 'controls': 0, 'disablekb': 1 },
-    events: {
-      onReady: function(e) { 
-          ytReady = true; 
-          e.target.setVolume(config.vol); 
-          initConfigUI(); 
-      },
-      onStateChange: function(e) {
-        if(!isHost) return;
-        if(e.data === YT.PlayerState.PLAYING) {
-           const dur = ytPlayer.getDuration ? ytPlayer.getDuration() : 0;
-           if(dur > config.maxDuration * 60) { logChat('SISTEMA', `Vídeo pulado: muito longo (> ${config.maxDuration} min).`, true); nextVideo(); return; }
-        }
-        if(e.data === YT.PlayerState.ENDED) { if(config.autoSkip) nextVideo(); }
-        paused = (e.data === YT.PlayerState.PAUSED);
-      }
-    }
-  });
-};
+                try {
+                    const res = await fetch(
+                        `https://api.giphy.com/v1/gifs/search?api_key=4PDpOTc45tY66qQAzqJoJhMfwBMTB054&q=${encodeURIComponent(cleanTerm)}&limit=10&rating=g`
+                    );
+                    const data = await res.json();
+                    if (data.data && data.data.length > 0) {
+                        const randomGif = data.data[Math.floor(Math.random() * data.data.length)];
+                        currentGifUrl = randomGif.images.original.url;
+                    } else {
+                        currentGifUrl = "https://media.giphy.com/media/3o7abB06u9bNzA8LC8/giphy.gif";
+                    }
+                    updateGifBackground();
+                } catch (e) {
+                    currentGifUrl = "https://media.giphy.com/media/3o7abB06u9bNzA8LC8/giphy.gif";
+                    updateGifBackground();
+                }
+            }
 
-async function extractId(url) {
-  if (!url) return null;
-  const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
-  const match = url.match(regExp);
-  return (match && match[2].length === 11) ? match[2] : null;
-}
+            function updateGifBackground() {
+                const bgEl = document.getElementById("qlistBg");
+                if (currentGifUrl) {
+                    bgEl.style.backgroundImage = `url(${currentGifUrl})`;
+                    bgEl.style.backgroundSize = "cover";
+                    bgEl.style.backgroundPosition = "center";
+                    bgEl.style.opacity = "0.3";
+                } else {
+                    bgEl.style.backgroundImage = "";
+                }
+            }
 
-async function fetchTitle(id) {
-  try {
-    const response = await fetch(`https://inv.nadeko.net/api/v1/videos/${id}`);
-    const data = await response.json();
-    if (data && data.title) return data.title;
-    throw new Error('API1');
-  } catch (e) {
-    try {
-      const response2 = await fetch(`https://invidious.nerdvpn.de/api/v1/videos/${id}`);
-      const data2 = await response2.json();
-      if (data2 && data2.title) return data2.title;
-      throw new Error('API2');
-    } catch(e2) {
-      try {
-        const response3 = await fetch(`https://noembed.com/embed?url=https://www.youtube.com/watch?v=${id}`);
-        const data3 = await response3.json();
-        if (data3 && data3.title) return data3.title;
-      } catch(e3) {}
-      return "Título Indisponível";
-    }
-  }
-}
+            async function addToQueue(rawUrl, user, color, fromTwitch) {
+                if (!user) user = myName || "Anônimo";
+                if (bannedUsers.includes(user.toLowerCase())) return;
 
-async function setQueueGif(term) {
-  if(!isHost || !term) return;
-  
-  let cleanTerm = term;
-  if (!cleanTerm || cleanTerm === "Título Indisponível") {
-    cleanTerm = "music video";
-  }
-  
-  cleanTerm = cleanTitleForGif(cleanTerm);
-  
-  if (!cleanTerm.trim()) cleanTerm = "party";
-  
-  try {
-    const res = await fetch(`https://api.giphy.com/v1/gifs/search?api_key=4PDpOTc45tY66qQAzqJoJhMfwBMTB054&q=${encodeURIComponent(cleanTerm)}&limit=10&rating=g`);
-    const data = await res.json();
-    if(data.data && data.data.length > 0) {
-      const randomGif = data.data[Math.floor(Math.random() * data.data.length)];
-      currentGifUrl = randomGif.images.original.url;
-    } else {
-      currentGifUrl = 'https://media.giphy.com/media/3o7abB06u9bNzA8LC8/giphy.gif';
-    }
-    updateGifBackground();
-  } catch(e) {
-    currentGifUrl = 'https://media.giphy.com/media/3o7abB06u9bNzA8LC8/giphy.gif';
-    updateGifBackground();
-  }
-}
+                let id = await extractId(rawUrl);
+                let fallbackTitle = "";
+                let isRawAudio = rawUrl.match(/\.(mp3|wav|ogg|m4a)$/i);
 
-function updateGifBackground() {
-    const bgEl = document.getElementById('qlistBg');
-    if (currentGifUrl) {
-        bgEl.style.backgroundImage = `url(${currentGifUrl})`;
-        bgEl.style.backgroundSize = 'cover';
-        bgEl.style.backgroundPosition = 'center';
-        bgEl.style.opacity = '0.3';
-    } else {
-        bgEl.style.backgroundImage = '';
-    }
-}
+                if (!id && !isRawAudio) {
+                    logChat("SISTEMA", `Buscando: "${rawUrl}"...`, true);
+                    const result = await searchYouTube(rawUrl);
+                    if (result && result.videoId) {
+                        id = result.videoId;
+                        fallbackTitle = result.title;
+                    } else {
+                        if (fromTwitch) {
+                            logChat("SISTEMA", `Nada encontrado para: ${rawUrl}`, true);
+                            sendTwitchMessage(`@${user} Nada encontrado para sua busca.`);
+                        } else toast("Nada encontrado", "err");
+                        return;
+                    }
+                }
 
-async function addToQueue(rawUrl, user, color, fromTwitch) {
-  if(!user) user = myName || 'Anônimo'; 
-  if(bannedUsers.includes(user.toLowerCase())) return; 
+                if (isRawAudio) {
+                    id = rawUrl;
+                    fallbackTitle = rawUrl.split("/").pop();
+                }
 
-  let id = await extractId(rawUrl);
-  let fallbackTitle = "";
-  let isRawAudio = rawUrl.match(/\.(mp3|wav|ogg|m4a)$/i);
-  
-  if (!id && !isRawAudio) {
-     logChat('SISTEMA', `Buscando: "${rawUrl}"...`, true);
-     const result = await searchYouTube(rawUrl);
-     if (result && result.videoId) { 
-         id = result.videoId; 
-         fallbackTitle = result.title; 
-     } else { 
-         if(fromTwitch) {
-             logChat('SISTEMA', `Nada encontrado para: ${rawUrl}`, true);
-             sendTwitchMessage(`@${user} Nada encontrado para sua busca.`);
-         } else toast('Nada encontrado', 'err'); return; 
-     }
-  }
+                if (
+                    queue.find(function (q) {
+                        return q.videoId === id;
+                    })
+                ) {
+                    if (!fromTwitch) toast("Já na fila!", "err");
+                    else sendTwitchMessage(`@${user} Esse vídeo já está na fila!`);
+                    return;
+                }
 
-  if (isRawAudio) {
-     id = rawUrl;
-     fallbackTitle = rawUrl.split('/').pop(); 
-  }
+                let title = "";
+                let duration = 0;
 
-  if (queue.find(function(q){ return q.videoId === id; })) { 
-      if(!fromTwitch) toast('Já na fila!', 'err'); 
-      else sendTwitchMessage(`@${user} Esse vídeo já está na fila!`);
-      return; 
-  }
-  
-  let title = "";
-  let duration = 0;
+                if (isRawAudio) {
+                    title = fallbackTitle;
+                    duration = 0;
+                } else {
+                    title = await fetchTitle(id);
+                    if (title === "Título Indisponível" || !title) {
+                        if (fallbackTitle) title = fallbackTitle;
+                        else
+                            title =
+                                rawUrl.replace(/^.*(youtu.be\/|v\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/, "Vídeo") ||
+                                "Música";
+                    }
+                    if ((title === "Título Indisponível" || !title) && fallbackTitle) {
+                        title = fallbackTitle;
+                    }
+                    duration = await getVideoDuration(id);
+                    if (duration > 0 && duration > config.maxDuration * 60) {
+                        if (fromTwitch) {
+                            logChat("SISTEMA", `Vídeo rejeitado por ser > ${config.maxDuration}min`, true);
+                            sendTwitchMessage(
+                                `@${user} Vídeo rejeitado por ultrapassar o limite de ${config.maxDuration} minutos.`
+                            );
+                        } else toast(`>${config.maxDuration}min`, "err");
+                        return;
+                    }
+                }
 
-  if (isRawAudio) {
-     title = fallbackTitle;
-     duration = 0;
-  } else {
-     title = await fetchTitle(id);
-     if (title === "Título Indisponível" || !title) {
-         if (fallbackTitle) title = fallbackTitle;
-         else title = rawUrl.replace(/^.*(youtu.be\/|v\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/, 'Vídeo') || "Música";
-     }
-     if ((title === "Título Indisponível" || !title) && fallbackTitle) { 
-         title = fallbackTitle; 
-     }
-     duration = await getVideoDuration(id);
-     if(duration > 0 && duration > config.maxDuration * 60) { 
-         if(fromTwitch) {
-             logChat('SISTEMA', `Vídeo rejeitado por ser > ${config.maxDuration}min`, true); 
-             sendTwitchMessage(`@${user} Vídeo rejeitado por ultrapassar o limite de ${config.maxDuration} minutos.`);
-         }
-         else toast(`>${config.maxDuration}min`, 'err'); 
-         return; 
-     }
-  }
-  
-  if(color && color.startsWith('#') && color !== '#00aaff') { twitchColors[user] = color; localStorage.setItem('cimpTwitchColors', JSON.stringify(twitchColors)); }
-  if(fromTwitch && !twitchUsers.has(user)) { twitchUsers.add(user); localStorage.setItem('cimpTwitchUsers', JSON.stringify(Array.from(twitchUsers))); }
-  
-  const userColor = twitchColors[user] || null;
-  let thumb = isRawAudio ? 'https://i.giphy.com/blSTtZehjAZ8I.webp' : `https://img.youtube.com/vi/${id}/hqdefault.jpg`;
-  
-  queue.push({videoId:id, title:title, user:user, color:userColor, thumb:thumb});
-  if(isHost && twitchUsers.has(user)) addPoints(user, 1);
-  logChat(user, title, true, userColor || '#00aaff');
-  if(isHost) playPing();
-  if(!fromTwitch) toast(`Adicionado`, 'ok');
-  
-  if(fromTwitch) {
-      sendTwitchMessage(`@${user} adicionou o video "${title}" na posição ${queue.length}`);
-  }
-  
-  if (isHost && curIdx === -1) startPlayback(0); else renderQueue();
-}
+                if (color && color.startsWith("#") && color !== "#00aaff") {
+                    twitchColors[user] = color;
+                    localStorage.setItem("cimpTwitchColors", JSON.stringify(twitchColors));
+                }
+                if (fromTwitch && !twitchUsers.has(user)) {
+                    twitchUsers.add(user);
+                    localStorage.setItem("cimpTwitchUsers", JSON.stringify(Array.from(twitchUsers)));
+                }
 
-function startPlayback(idx) {
-  if (!isHost || idx < 0 || idx >= queue.length) return; stopEmptySound(); curIdx = idx; const item = queue[curIdx];
-  document.getElementById('eover').classList.add('gone'); document.getElementById('npbar').style.display = 'flex';
-  document.getElementById('npTitle').textContent = item.title; document.getElementById('npUser').textContent = item.user;
-  document.getElementById('npUser').style.color = sanitizeColor(item.color) || ''; document.getElementById('playerGlow').style.backgroundImage = `url(${item.thumb})`;
-  if(config.glow) document.getElementById('playerGlow').classList.add('active');
-  loadVid(item.videoId);
-  
-  const isMp3 = item.videoId.match(/\.(mp3|wav|ogg|m4a)$/i);
-if(isMp3) {
-    currentGifUrl = 'https://media.giphy.com/media/r50i0lZV4ijvzLcJKz/giphy.gif';
-    updateGifBackground();
-} else {
-    setQueueGif(item.title);
-}
-  
-  renderQueue();
-}
+                const userColor = twitchColors[user] || null;
+                let thumb = isRawAudio
+                    ? "https://i.giphy.com/blSTtZehjAZ8I.webp"
+                    : `https://img.youtube.com/vi/${id}/hqdefault.jpg`;
 
-function nextVideo() {
-  if (!isHost) return; queue.splice(0, curIdx + 1); curIdx = -1;
-  if (queue.length > 0) startPlayback(0);
-  else {
-    showEmpty();
-    playEmptySound();
-    // Notify chat that the queue ended (only when host finishes videos)
-    sendTwitchMessage('Nenhum vídeo na fila! Adicione uma musica usando %cimp (link do youtube)');
-  }
-}
+                queue.push({ videoId: id, title: title, user: user, color: userColor, thumb: thumb });
+                if (isHost && twitchUsers.has(user)) addPoints(user, 1);
+                logChat(user, title, true, userColor || "#00aaff");
+                if (isHost) playPing();
+                if (!fromTwitch) toast(`Adicionado`, "ok");
 
-function showEmpty() {
-  curIdx = -1; currentGifUrl = ''; updateGifBackground(); document.getElementById('eover').classList.remove('gone');
-  document.getElementById('eoverText').innerHTML = isHost ? "Nenhum vídeo.<br>Use o chat" : "Aguardando Host..."; document.getElementById('npbar').style.display = 'none';
-  document.getElementById('playerGlow').classList.remove('active'); 
-  if (ytReady && ytPlayer && ytPlayer.stopVideo) ytPlayer.stopVideo(); 
-  const rawAudio = document.getElementById('rawAudio');
-  if(rawAudio) { rawAudio.pause(); rawAudio.style.display = 'none'; }
-  document.getElementById('qlistBg').style.backgroundImage = ''; renderQueue();
-}
+                if (fromTwitch) {
+                    sendTwitchMessage(`@${user} adicionou o video "${title}" na posição ${queue.length}`);
+                }
 
-function loadVid(id) {
-  if(!id) return; 
-  const ytFrame = document.getElementById('ytFrame');
-  const rawAudio = document.getElementById('rawAudio');
-  const isMp3 = id.match(/\.(mp3|wav|ogg|m4a)$/i);
-  
-  if (isMp3) {
-      if(ytReady && ytPlayer && ytPlayer.stopVideo) ytPlayer.stopVideo();
-      ytFrame.style.display = 'none';
-      if(rawAudio) {
-          rawAudio.style.display = 'block';
-          rawAudio.src = id;
-          rawAudio.volume = config.vol / 100;
-          if(!paused) rawAudio.play().catch(function(){});
-      }
-  } else {
-      if(rawAudio) { rawAudio.pause(); rawAudio.style.display = 'none'; }
-      ytFrame.style.display = 'block';
-      if(ytReady && ytPlayer && ytPlayer.loadVideoById) { ytPlayer.loadVideoById({videoId:id, startSeconds:0}); if(!paused) ytPlayer.playVideo(); }
-  }
-}
+                if (isHost && curIdx === -1) startPlayback(0);
+                else renderQueue();
+            }
 
-function renderQueue() {
-  const list = document.getElementById('qlist'); const empty = document.getElementById('qempty');
-  document.getElementById('qcount').textContent = queue.length; list.querySelectorAll('.qi').forEach(function(i){i.remove();});
-  if(queue.length===0){ empty.style.display='flex'; return; } empty.style.display='none';
-  queue.forEach(function(item,i){
-    const isCur = i===curIdx; let pos = isCur ? '▶' : (curIdx>=0 ? '#'+(i-curIdx) : '#'+(i+1));
-    const d = document.createElement('div'); d.className = 'qi' + (isCur?' cur':'');
-    d.innerHTML = `
+            function startPlayback(idx) {
+                if (!isHost || idx < 0 || idx >= queue.length) return;
+                stopEmptySound();
+                curIdx = idx;
+                const item = queue[curIdx];
+                document.getElementById("eover").classList.add("gone");
+                document.getElementById("npbar").style.display = "flex";
+                document.getElementById("npTitle").textContent = item.title;
+                document.getElementById("npUser").textContent = item.user;
+                document.getElementById("npUser").style.color = sanitizeColor(item.color) || "";
+                document.getElementById("playerGlow").style.backgroundImage = `url(${item.thumb})`;
+                if (config.glow) document.getElementById("playerGlow").classList.add("active");
+                loadVid(item.videoId);
+
+                const isMp3 = item.videoId.match(/\.(mp3|wav|ogg|m4a)$/i);
+                if (isMp3) {
+                    currentGifUrl = "https://media.giphy.com/media/r50i0lZV4ijvzLcJKz/giphy.gif";
+                    updateGifBackground();
+                } else {
+                    setQueueGif(item.title);
+                }
+
+                renderQueue();
+            }
+
+            function nextVideo() {
+                if (!isHost) return;
+                queue.splice(0, curIdx + 1);
+                curIdx = -1;
+                if (queue.length > 0) startPlayback(0);
+                else {
+                    showEmpty();
+                    playEmptySound();
+                    // Notify chat that the queue ended (only when host finishes videos)
+                    sendTwitchMessage("Nenhum vídeo na fila! Adicione uma musica usando %cimp (link do youtube)");
+                }
+            }
+
+            function showEmpty() {
+                curIdx = -1;
+                currentGifUrl = "";
+                updateGifBackground();
+                document.getElementById("eover").classList.remove("gone");
+                document.getElementById("eoverText").innerHTML = isHost
+                    ? "Nenhum vídeo.<br>Use o chat"
+                    : "Aguardando Host...";
+                document.getElementById("npbar").style.display = "none";
+                document.getElementById("playerGlow").classList.remove("active");
+                if (ytReady && ytPlayer && ytPlayer.stopVideo) ytPlayer.stopVideo();
+                const rawAudio = document.getElementById("rawAudio");
+                if (rawAudio) {
+                    rawAudio.pause();
+                    rawAudio.style.display = "none";
+                }
+                document.getElementById("qlistBg").style.backgroundImage = "";
+                renderQueue();
+            }
+
+            function loadVid(id) {
+                if (!id) return;
+                const ytFrame = document.getElementById("ytFrame");
+                const rawAudio = document.getElementById("rawAudio");
+                const isMp3 = id.match(/\.(mp3|wav|ogg|m4a)$/i);
+
+                if (isMp3) {
+                    if (ytReady && ytPlayer && ytPlayer.stopVideo) ytPlayer.stopVideo();
+                    ytFrame.style.display = "none";
+                    if (rawAudio) {
+                        rawAudio.style.display = "block";
+                        rawAudio.src = id;
+                        rawAudio.volume = config.vol / 100;
+                        if (!paused) rawAudio.play().catch(function () {});
+                    }
+                } else {
+                    if (rawAudio) {
+                        rawAudio.pause();
+                        rawAudio.style.display = "none";
+                    }
+                    ytFrame.style.display = "block";
+                    if (ytReady && ytPlayer && ytPlayer.loadVideoById) {
+                        ytPlayer.loadVideoById({ videoId: id, startSeconds: 0 });
+                        if (!paused) ytPlayer.playVideo();
+                    }
+                }
+            }
+
+            function renderQueue() {
+                const list = document.getElementById("qlist");
+                const empty = document.getElementById("qempty");
+                document.getElementById("qcount").textContent = queue.length;
+                list.querySelectorAll(".qi").forEach(function (i) {
+                    i.remove();
+                });
+                if (queue.length === 0) {
+                    empty.style.display = "flex";
+                    return;
+                }
+                empty.style.display = "none";
+                queue.forEach(function (item, i) {
+                    const isCur = i === curIdx;
+                    let pos = isCur ? "▶" : curIdx >= 0 ? "#" + (i - curIdx) : "#" + (i + 1);
+                    const d = document.createElement("div");
+                    d.className = "qi" + (isCur ? " cur" : "");
+                    d.innerHTML = `
       <div class="qithumb"><img src="${esc(item.thumb)}" loading="lazy"></div>
-      <div class="qibody"><div class="qititle" title="${esc(item.title)}">${esc(item.title)}</div><div class="qiuser" style="${item.color ? `color:${sanitizeColor(item.color)}` : ''}">${esc(item.user)}</div></div>
-      ${!isCur ? `<span class="qinum">${pos}</span>` : ''}
+      <div class="qibody"><div class="qititle" title="${esc(item.title)}">${esc(item.title)}</div><div class="qiuser" style="${item.color ? `color:${sanitizeColor(item.color)}` : ""}">${esc(item.user)}</div></div>
+      ${!isCur ? `<span class="qinum">${pos}</span>` : ""}
       <button class="qisave" data-i="${i}" title="Salvar">💾</button>
-      ${isAdmin && !isCur ? `<button class="qidel" data-i="${i}" title="Remover">✕</button>` : ''}
+      ${isAdmin && !isCur ? `<button class="qidel" data-i="${i}" title="Remover">✕</button>` : ""}
     `;
-    list.appendChild(d);
-  });
-  list.querySelectorAll('.qisave').forEach(function(btn){ btn.addEventListener('click',function(e){e.stopPropagation(); const item=queue[parseInt(btn.dataset.i)]; if(!cimpPlaylist.find(function(v){return v.videoId===item.videoId;})){cimpPlaylist.push(item);localStorage.setItem('cimpPlaylist',JSON.stringify(cimpPlaylist));renderPlaylist();toast('Salvo!', 'ok');}}); });
-  if(isAdmin){ list.querySelectorAll('.qidel').forEach(function(btn){ btn.addEventListener('click',function(e){e.stopPropagation(); const i=parseInt(btn.dataset.i); queue.splice(i,1); if(i<curIdx)curIdx--; else if(i===curIdx){curIdx=-1;if(queue.length>0)startPlayback(0);else showEmpty();} renderQueue();}); }); }
-}
-
-function renderPlaylist() {
-  const c = document.getElementById('dropContent'); c.innerHTML = '';
-  if(cimpPlaylist.length===0){ c.innerHTML = '<div style="padding:15px;font-size:0.75rem;color:var(--muted);text-align:center;">Playlist vazia</div>'; return; }
-  cimpPlaylist.forEach(function(item,i){
-    const d = document.createElement('div'); d.className='plist-item';
-    d.innerHTML = `<img class="plist-thumb" src="${esc(item.thumb)}" loading="lazy"><div class="plist-title">${esc(item.title)}</div><button class="plist-del" data-i="${i}">✕</button>`;
-    d.addEventListener('click',function(e){ if(e.target.classList.contains('plist-del'))return; sendCmd('add',{url: item.videoId.match(/\.(mp3|wav|ogg|m4a)$/i) ? item.videoId : `https://youtu.be/${item.videoId}`,user:myName||'Viewer'}); document.getElementById('dropContent').classList.remove('show'); });
-    c.appendChild(d);
-  });
-  c.querySelectorAll('.plist-del').forEach(function(btn){ btn.addEventListener('click',function(e){e.stopPropagation(); cimpPlaylist.splice(parseInt(btn.dataset.i),1); localStorage.setItem('cimpPlaylist',JSON.stringify(cimpPlaylist)); renderPlaylist();}); });
-}
-document.getElementById('dropBtn').addEventListener('click',function(){document.getElementById('dropContent').classList.toggle('show');});
-window.onclick = function(e) { if(!e.target.matches('#dropBtn') && !e.target.closest('.dropdown-content')) document.getElementById('dropContent').classList.remove('show'); };
-renderPlaylist();
-
-function toggleAdmin(state) {
-    if(state){ 
-        document.body.classList.add('is-admin'); 
-        document.getElementById('apanel').classList.add('show'); 
-        
-        if(!isHost) {
-            document.getElementById('cfgGeral').style.display = 'none';
-            document.getElementById('publicSeekRow').style.display = 'none';
-        } else {
-            document.getElementById('cfgGeral').style.display = 'flex';
-            document.getElementById('publicSeekRow').style.display = 'flex';
-        }
-    } else { 
-        document.body.classList.remove('is-admin'); 
-        document.getElementById('apanel').classList.remove('show'); 
-    }
-    renderQueue();
-}
-
-function sendTwitchMessage(msg) {
-  const now = Date.now();
-  if (now - lastTwitchMessageTime < TWITCH_COOLDOWN_MS) {
-    console.log('Twitch bot cooldown active, skipping message:', msg);
-    return;
-  }
-  lastTwitchMessageTime = now;
-  if (twitchWs && twitchWs.readyState === WebSocket.OPEN) {
-    twitchWs.send(`PRIVMSG #${CHANNEL} :${msg}`);
-    logChat('BOT', msg, true, '#ffdd57');
-  }
-}
-
-function sendCmd(action, payload = {}) {
-  if(isHost){
-    if(action === 'add') {
-      addToQueue(payload.url, payload.user, payload.color, payload.fromTwitch);
-    }
-    if(action === 'ban' && payload.target) {
-      banUser(payload.target);
-    }
-    if(action === 'skip') {
-      logAdminAction(myName, "Pulou o vídeo atual");
-      nextVideo();
-    }
-    if(action === 'pause') {
-      paused = !paused;
-      const status = paused ? "Pausou" : "Despausou";
-      logAdminAction(myName, status + " o player");
-      const isMp3 = curIdx >= 0 && queue[curIdx].videoId.match(/\.(mp3|wav|ogg|m4a)$/i);
-      const rawAudio = document.getElementById('rawAudio');
-      if (isMp3 && rawAudio) {
-          if (paused) rawAudio.pause(); else rawAudio.play().catch(function(){});
-      } else {
-          if (paused && ytPlayer) ytPlayer.pauseVideo(); else if (ytPlayer) ytPlayer.playVideo();
-      }
-    }
-    if(action === 'clear') {
-      logAdminAction(myName, "Limpou a fila");
-      queue = [];
-      showEmpty();
-    }
-    if(action === 'seek' && payload.time !== undefined) {
-      const isMp3 = curIdx >= 0 && queue[curIdx].videoId.match(/\.(mp3|wav|ogg|m4a)$/i);
-      const rawAudio = document.getElementById('rawAudio');
-      if (isMp3 && rawAudio) {
-          rawAudio.currentTime = payload.time;
-      } else {
-          if(ytPlayer) ytPlayer.seekTo(payload.time, true);
-      }
-    }
-  } 
-  else if(hostConnection && hostConnection.open){
-    hostConnection.send(Object.assign({type:'cmd', action:action}, payload));
-    if(action !== 'seek') toast('Enviado ao Host','ok');
-  }
-}
-
-document.getElementById('userAddBtn').addEventListener('click', function() { const raw = document.getElementById('userUrl').value.trim(); document.getElementById('userUrl').value = ''; if(!raw) return; sendCmd('add', {url: raw, user: myName||'Viewer'}); });
-document.getElementById('userUrl').addEventListener('keydown',function(e){if(e.key==='Enter')document.getElementById('userAddBtn').click();});
-document.getElementById('pauseBtn').addEventListener('click',function(){sendCmd('pause', {user: myName});});
-document.getElementById('skipBtn').addEventListener('click',function(){sendCmd('skip', {user: myName});});
-document.getElementById('clearBtn').addEventListener('click',function(){sendCmd('clear', {user: myName});});
-
-document.getElementById('cfgGlow').addEventListener('change',function(e){config.glow=e.target.checked; if(config.glow&&curIdx!==-1)document.getElementById('playerGlow').classList.add('active'); else document.getElementById('playerGlow').classList.remove('active'); saveConfig();});
-document.getElementById('cfgBpm').addEventListener('change',function(e){config.bpm=e.target.checked; saveConfig();});
-document.getElementById('cfgGifWords').addEventListener('change',function(e){config.gifWords=parseInt(e.target.value); saveConfig(); if(isHost && curIdx >= 0) setQueueGif(queue[curIdx].title); });
-document.getElementById('cfgEmptySound').addEventListener('change',function(e){config.emptySound=e.target.checked; if(!config.emptySound)stopEmptySound(); saveConfig(); toast(config.emptySound?'Som ativado':'Som desativado','ok');});
-document.getElementById('cfgAutoSkip').addEventListener('change',function(e){ config.autoSkip = e.target.checked; saveConfig(); toast(config.autoSkip ? 'Pulo automático ativado' : 'Pulo automático desativado', 'ok'); });
-document.getElementById('cfgMaxDur').addEventListener('change',function(e){config.maxDuration=parseInt(e.target.value); saveConfig();});
-
-const seekClient = document.getElementById('seekSliderClient'); const volClient = document.getElementById('volSliderClient'); const seekTimeClient = document.getElementById('seekTimeClient'); const volNumClient = document.getElementById('volNumClient');
-volClient.addEventListener('input',function(){ 
-    config.vol=parseInt(this.value); 
-    volNumClient.textContent=config.vol+'%'; 
-    if(ytPlayer && ytPlayer.setVolume) ytPlayer.setVolume(config.vol); 
-    const rawAudio = document.getElementById('rawAudio');
-    if(rawAudio) rawAudio.volume = config.vol / 100;
-    saveConfig(); 
-});
-seekClient.addEventListener('input',function(){
-  if(isHost){
-      const isMp3 = (curIdx >= 0 && queue[curIdx] && queue[curIdx].videoId.match(/\.(mp3|wav|ogg|m4a)$/i));
-      const rawAudio = document.getElementById('rawAudio');
-      if (isMp3 && rawAudio) {
-          rawAudio.currentTime = parseFloat(this.value);
-      } else if(ytPlayer && ytPlayer.seekTo) {
-          ytPlayer.seekTo(parseFloat(this.value),true);
-      }
-  } else if(isAdmin && hostConnection && hostConnection.open){ 
-      hostConnection.send({type:'cmd', action:'seek', time: parseFloat(this.value), user: myName}); 
-  }
-});
-
-setInterval(function() {
-  let cur = 0; let dur = 0;
-  const rawAudio = document.getElementById('rawAudio');
-  const isMp3 = (curIdx >= 0 && queue[curIdx] && queue[curIdx].videoId.match(/\.(mp3|wav|ogg|m4a)$/i));
-  if(curIdx >= 0 && queue[curIdx]) {
-      if(isMp3 && rawAudio) {
-          cur = rawAudio.currentTime || 0;
-          dur = rawAudio.duration || 0;
-      } else if(ytReady && ytPlayer && ytPlayer.getCurrentTime) { 
-          cur = ytPlayer.getCurrentTime(); 
-          dur = ytPlayer.getDuration ? ytPlayer.getDuration() : 0; 
-      }
-  }
-  if(seekClient){ seekClient.max = dur || 100; seekClient.value = cur; }
-  const f = function(t){ return Math.floor(t/60) + ':' + Math.floor(t%60).toString().padStart(2,'0'); };
-  if(seekTimeClient) seekTimeClient.textContent = f(cur) + '/' + (dur>0 ? f(dur) : '--:--');
-}, 500);
-
-function connectTwitch() {
-  logChat('SISTEMA', '🔗 Conectando ao Twitch chat...', true, '#ffdd57');
-  twitchWs = new WebSocket('wss://irc-ws.chat.twitch.tv:443');
-
-  //senhas importantes
-  
-  twitchWs.onopen = function() { 
-    logChat('SISTEMA', '✅ WebSocket conectado. Enviando credenciais...', true, '#5de89a');
-    twitchWs.send(`PASS oauth:m86lajvmo1az9wv7xi0dgpxze1tdsd`); 
-    twitchWs.send(`NICK jonhcreator2`); 
-    twitchWs.send(`JOIN #${CHANNEL}`); 
-    twitchWs.send('CAP REQ :twitch.tv/tags'); 
-    twitchWs.send('CAP REQ :twitch.tv/commands');
-  };
-  
-  twitchWs.onerror = function(err) {
-    logChat('SISTEMA', `❌ Erro Twitch websocket. Conexão falhou.`, true, '#ff7070');
-    twitchWs = null;
-  };
-  
-  twitchWs.onmessage = async function(e) {
-    const messages = e.data.trim().split('\r\n');
-    
-    for (let raw of messages) {
-        raw = raw.trim();
-        if (!raw) continue;
-        
-        
-        if (raw.startsWith('PING')) { 
-          twitchWs.send('PONG :tmi.twitch.tv'); 
-          continue; 
-        }
-        
-        let tags = {}; 
-        let messagePart = raw;
-        
-        if (raw.startsWith('@')) { 
-            const tagEnd = raw.indexOf(' :'); 
-            if (tagEnd !== -1) {
-                const tagStr = raw.substring(1, tagEnd); 
-                tagStr.split(';').forEach(function(t){ const p = t.split('='); tags[p[0]] = p[1] || ''; }); 
-                messagePart = raw.substring(tagEnd + 1); 
-            }
-        }
-        
-        const m = messagePart.match(/:([\w]+)![\w]+@[\w]+\.tmi\.twitch\.tv PRIVMSG #[\w]+ :(.*)/); 
-        if (!m) {
-          if (raw.includes('aceboladoo_') && raw.includes('NOTICE')) {
-            logChat('SISTEMA', '⚠️ Aviso do servidor Twitch recebido', true, '#ffb347');
-          }
-          continue;
-        }
-        
-        const twitchUser = m[1].toLowerCase(); 
-        const msg = m[2].trim(); 
-        const rawColor = tags.color && tags.color.startsWith('#') ? tags.color : null; 
-        const color = rawColor || '#00aaff'; 
-        const isMod = tags.mod === '1' || (tags.badges && tags.badges.includes('moderator'));
-        
-        
-        if (isMod) twitchMods.add(twitchUser); 
-        if (!myTwitchName) myTwitchName = twitchUser;
-        if (rawColor) { twitchColors[twitchUser] = rawColor; localStorage.setItem('cimpTwitchColors', JSON.stringify(twitchColors)); }
-        if (!twitchUsers.has(twitchUser)) { twitchUsers.add(twitchUser); localStorage.setItem('cimpTwitchUsers', JSON.stringify(Array.from(twitchUsers))); }
-        
-        if (msg.toLowerCase().startsWith('%cimp')) {
-            const payload = msg.slice(5).trim();
-            const parts = payload.split(' ');
-            const action = parts[0] ? parts[0].toLowerCase() : '';
-            const arg = parts.slice(1).join(' ');
-            
-            if (action === 'ajuda' || action === 'help') {
-                sendTwitchMessage(`@${twitchUser} %cimp ajuda | %cimp give (quantidade) @usuario | %cimp ban @usuario | %cimp pontos @usuario | %cimp skip | %cimp trocar | %cimp gif (nome)`);
-                continue;
-            }
-            
-            if (action === 'give' && arg) {
-                const amount = parseInt(parts[1], 10);
-                const target = parts.slice(2).join(' ').replace('@', '').toLowerCase();
-                if (!target || isNaN(amount) || amount <= 0) {
-                    sendTwitchMessage(`@${twitchUser} Uso: %cimp give (quantidade) @usuario`);
-                    continue;
+                    list.appendChild(d);
+                });
+                list.querySelectorAll(".qisave").forEach(function (btn) {
+                    btn.addEventListener("click", function (e) {
+                        e.stopPropagation();
+                        const item = queue[parseInt(btn.dataset.i)];
+                        if (
+                            !cimpPlaylist.find(function (v) {
+                                return v.videoId === item.videoId;
+                            })
+                        ) {
+                            cimpPlaylist.push(item);
+                            localStorage.setItem("cimpPlaylist", JSON.stringify(cimpPlaylist));
+                            renderPlaylist();
+                            toast("Salvo!", "ok");
+                        }
+                    });
+                });
+                if (isAdmin) {
+                    list.querySelectorAll(".qidel").forEach(function (btn) {
+                        btn.addEventListener("click", function (e) {
+                            e.stopPropagation();
+                            const i = parseInt(btn.dataset.i);
+                            queue.splice(i, 1);
+                            if (i < curIdx) curIdx--;
+                            else if (i === curIdx) {
+                                curIdx = -1;
+                                if (queue.length > 0) startPlayback(0);
+                                else showEmpty();
+                            }
+                            renderQueue();
+                        });
+                    });
                 }
-                if (target === twitchUser) {
-                    sendTwitchMessage(`@${twitchUser} você não pode dar pontos a si mesmo besta.`);
-                    continue;
-                }
-                if (getUserPoints(twitchUser) < amount) {
-                    sendTwitchMessage(`@${twitchUser} pobre.`);
-                    continue;
-                }
-                spendPoints(twitchUser, amount);
-                addPoints(target, amount);
-                sendTwitchMessage(`@${twitchUser} deu ${amount} Cimps para @${target}`);
-                continue;
             }
-            
-            if (action === 'ban' && arg) {
-                if (isMod || isHost) {
-                    const target = arg.replace('@', '').toLowerCase();
-                    banUser(target);
-                    sendTwitchMessage(`@${twitchUser} baniu @${target} anga `);
+
+            function renderPlaylist() {
+                const c = document.getElementById("dropContent");
+                c.innerHTML = "";
+                if (cimpPlaylist.length === 0) {
+                    c.innerHTML =
+                        '<div style="padding:15px;font-size:0.75rem;color:var(--muted);text-align:center;">Playlist vazia</div>';
+                    return;
+                }
+                cimpPlaylist.forEach(function (item, i) {
+                    const d = document.createElement("div");
+                    d.className = "plist-item";
+                    d.innerHTML = `<img class="plist-thumb" src="${esc(item.thumb)}" loading="lazy"><div class="plist-title">${esc(item.title)}</div><button class="plist-del" data-i="${i}">✕</button>`;
+                    d.addEventListener("click", function (e) {
+                        if (e.target.classList.contains("plist-del")) return;
+                        sendCmd("add", {
+                            url: item.videoId.match(/\.(mp3|wav|ogg|m4a)$/i)
+                                ? item.videoId
+                                : `https://youtu.be/${item.videoId}`,
+                            user: myName || "Viewer",
+                        });
+                        document.getElementById("dropContent").classList.remove("show");
+                    });
+                    c.appendChild(d);
+                });
+                c.querySelectorAll(".plist-del").forEach(function (btn) {
+                    btn.addEventListener("click", function (e) {
+                        e.stopPropagation();
+                        cimpPlaylist.splice(parseInt(btn.dataset.i), 1);
+                        localStorage.setItem("cimpPlaylist", JSON.stringify(cimpPlaylist));
+                        renderPlaylist();
+                    });
+                });
+            }
+            document.getElementById("dropBtn").addEventListener("click", function () {
+                document.getElementById("dropContent").classList.toggle("show");
+            });
+            window.onclick = function (e) {
+                if (!e.target.matches("#dropBtn") && !e.target.closest(".dropdown-content"))
+                    document.getElementById("dropContent").classList.remove("show");
+            };
+            renderPlaylist();
+
+            function toggleAdmin(state) {
+                if (state) {
+                    document.body.classList.add("is-admin");
+                    document.getElementById("apanel").classList.add("show");
+
+                    if (!isHost) {
+                        document.getElementById("cfgGeral").style.display = "none";
+                        document.getElementById("publicSeekRow").style.display = "none";
+                    } else {
+                        document.getElementById("cfgGeral").style.display = "flex";
+                        document.getElementById("publicSeekRow").style.display = "flex";
+                    }
                 } else {
-                    sendTwitchMessage(`@${twitchUser} seja mod primeiro`);
+                    document.body.classList.remove("is-admin");
+                    document.getElementById("apanel").classList.remove("show");
                 }
-                continue;
-            }
-            
-            if (action === 'pontos') {
-                const target = arg ? arg.replace('@', '').toLowerCase() : twitchUser;
-                const amount = getUserPoints(target);
-                sendTwitchMessage(`@${twitchUser} ${target} tem ${amount} Cimps`);
-                continue;
+                renderQueue();
             }
 
-            if (action === 'tocando') {
-              if (curIdx >= 0 && queue[curIdx]) {
-                const it = queue[curIdx];
-                sendTwitchMessage(`@${twitchUser} Tocando agora: "${it.title}" pedido por ${it.user}`);
-              } else {
-                sendTwitchMessage(`@${twitchUser} Nenhum vídeo tocando no momento.`);
-              }
-              continue;
-            }
-
-            if (action === 'lista') {
-              const cnt = queue.length;
-              if (cnt === 0) {
-                sendTwitchMessage(`@${twitchUser} A fila está vazia.`);
-              } else {
-                let nextIdx = (curIdx === -1) ? 0 : (curIdx + 1);
-                if (nextIdx >= queue.length) nextIdx = 0;
-                const n = queue[nextIdx];
-                sendTwitchMessage(`@${twitchUser} Há ${cnt} músicas na fila. Próxima: "${n.title}" pedido por ${n.user}`);
-              }
-              continue;
-            }
-            
-            if (action === 'skip') {
-                if (isMod || getUserPoints(twitchUser) >= 50) {
-                    if (!isMod) spendPoints(twitchUser, 50);
-                    if (isHost) nextVideo(); else sendCmd('skip', {user: twitchUser});
-                    sendTwitchMessage(`@${twitchUser} pulou o video JAJA `);
-                } else {
-                    sendTwitchMessage(`@${twitchUser} Seja mais rico`);
+            function sendTwitchMessage(msg) {
+                const now = Date.now();
+                if (now - lastTwitchMessageTime < TWITCH_COOLDOWN_MS) {
+                    console.log("Twitch bot cooldown active, skipping message:", msg);
+                    return;
                 }
-                continue;
-            }
-            
-            if (action === 'trocar') {
-                if (getUserPoints(twitchUser) >= 50) {
-                    spendPoints(twitchUser, 50);
-                    if (isHost) { queue = queue.sort(function(){return Math.random() - 0.5;}); renderQueue(); } else sendCmd('trocar', {user: twitchUser});
-                    sendTwitchMessage(`@${twitchUser} fila trocada`);
-                } else {
-                    sendTwitchMessage(`@${twitchUser} Tenha mais dinheiros`);
+                lastTwitchMessageTime = now;
+                if (twitchWs && twitchWs.readyState === WebSocket.OPEN) {
+                    twitchWs.send(`PRIVMSG #${CHANNEL} :${msg}`);
+                    logChat("BOT", msg, true, "#ffdd57");
                 }
-                continue;
             }
-            
-            if (action === 'gif' && arg) {
-                if (getUserPoints(twitchUser) >= 20) {
-                    spendPoints(twitchUser, 20);
-                    if (isHost) setQueueGif(arg); else sendCmd('gif', {user: twitchUser, gifName: arg});
-                    sendTwitchMessage(`@${twitchUser} trocou o gif pra ${arg}`);
-                } else {
-                    sendTwitchMessage(`@${twitchUser} bixo pobre`);
+
+            function sendCmd(action, payload = {}) {
+                if (isHost) {
+                    if (action === "add") {
+                        addToQueue(payload.url, payload.user, payload.color, payload.fromTwitch);
+                    }
+                    if (action === "ban" && payload.target) {
+                        banUser(payload.target);
+                    }
+                    if (action === "skip") {
+                        logAdminAction(myName, "Pulou o vídeo atual");
+                        nextVideo();
+                    }
+                    if (action === "pause") {
+                        paused = !paused;
+                        const status = paused ? "Pausou" : "Despausou";
+                        logAdminAction(myName, status + " o player");
+                        const isMp3 = curIdx >= 0 && queue[curIdx].videoId.match(/\.(mp3|wav|ogg|m4a)$/i);
+                        const rawAudio = document.getElementById("rawAudio");
+                        if (isMp3 && rawAudio) {
+                            if (paused) rawAudio.pause();
+                            else rawAudio.play().catch(function () {});
+                        } else {
+                            if (paused && ytPlayer) ytPlayer.pauseVideo();
+                            else if (ytPlayer) ytPlayer.playVideo();
+                        }
+                    }
+                    if (action === "clear") {
+                        logAdminAction(myName, "Limpou a fila");
+                        queue = [];
+                        showEmpty();
+                    }
+                    if (action === "seek" && payload.time !== undefined) {
+                        const isMp3 = curIdx >= 0 && queue[curIdx].videoId.match(/\.(mp3|wav|ogg|m4a)$/i);
+                        const rawAudio = document.getElementById("rawAudio");
+                        if (isMp3 && rawAudio) {
+                            rawAudio.currentTime = payload.time;
+                        } else {
+                            if (ytPlayer) ytPlayer.seekTo(payload.time, true);
+                        }
+                    }
+                } else if (hostConnection && hostConnection.open) {
+                    hostConnection.send(Object.assign({ type: "cmd", action: action }, payload));
+                    if (action !== "seek") toast("Enviado ao Host", "ok");
                 }
-                continue;
             }
-            
-            if (payload && !['ajuda','help','give','ban','pontos','skip','trocar','gif'].includes(action)) {
-                await addToQueue(payload, twitchUser, color, true);
-                continue;
+
+            document.getElementById("userAddBtn").addEventListener("click", function () {
+                const raw = document.getElementById("userUrl").value.trim();
+                document.getElementById("userUrl").value = "";
+                if (!raw) return;
+                sendCmd("add", { url: raw, user: myName || "Viewer" });
+            });
+            document.getElementById("userUrl").addEventListener("keydown", function (e) {
+                if (e.key === "Enter") document.getElementById("userAddBtn").click();
+            });
+            document.getElementById("pauseBtn").addEventListener("click", function () {
+                sendCmd("pause", { user: myName });
+            });
+            document.getElementById("skipBtn").addEventListener("click", function () {
+                sendCmd("skip", { user: myName });
+            });
+            document.getElementById("clearBtn").addEventListener("click", function () {
+                sendCmd("clear", { user: myName });
+            });
+
+            document.getElementById("cfgGlow").addEventListener("change", function (e) {
+                config.glow = e.target.checked;
+                if (config.glow && curIdx !== -1) document.getElementById("playerGlow").classList.add("active");
+                else document.getElementById("playerGlow").classList.remove("active");
+                saveConfig();
+            });
+            document.getElementById("cfgBpm").addEventListener("change", function (e) {
+                config.bpm = e.target.checked;
+                saveConfig();
+            });
+            document.getElementById("cfgGifWords").addEventListener("change", function (e) {
+                config.gifWords = parseInt(e.target.value);
+                saveConfig();
+                if (isHost && curIdx >= 0) setQueueGif(queue[curIdx].title);
+            });
+            document.getElementById("cfgEmptySound").addEventListener("change", function (e) {
+                config.emptySound = e.target.checked;
+                if (!config.emptySound) stopEmptySound();
+                saveConfig();
+                toast(config.emptySound ? "Som ativado" : "Som desativado", "ok");
+            });
+            document.getElementById("cfgAutoSkip").addEventListener("change", function (e) {
+                config.autoSkip = e.target.checked;
+                saveConfig();
+                toast(config.autoSkip ? "Pulo automático ativado" : "Pulo automático desativado", "ok");
+            });
+            document.getElementById("cfgMaxDur").addEventListener("change", function (e) {
+                config.maxDuration = parseInt(e.target.value);
+                saveConfig();
+            });
+
+            const seekClient = document.getElementById("seekSliderClient");
+            const volClient = document.getElementById("volSliderClient");
+            const seekTimeClient = document.getElementById("seekTimeClient");
+            const volNumClient = document.getElementById("volNumClient");
+            volClient.addEventListener("input", function () {
+                config.vol = parseInt(this.value);
+                volNumClient.textContent = config.vol + "%";
+                if (ytPlayer && ytPlayer.setVolume) ytPlayer.setVolume(config.vol);
+                const rawAudio = document.getElementById("rawAudio");
+                if (rawAudio) rawAudio.volume = config.vol / 100;
+                saveConfig();
+            });
+            seekClient.addEventListener("input", function () {
+                if (isHost) {
+                    const isMp3 = curIdx >= 0 && queue[curIdx] && queue[curIdx].videoId.match(/\.(mp3|wav|ogg|m4a)$/i);
+                    const rawAudio = document.getElementById("rawAudio");
+                    if (isMp3 && rawAudio) {
+                        rawAudio.currentTime = parseFloat(this.value);
+                    } else if (ytPlayer && ytPlayer.seekTo) {
+                        ytPlayer.seekTo(parseFloat(this.value), true);
+                    }
+                } else if (isAdmin && hostConnection && hostConnection.open) {
+                    hostConnection.send({ type: "cmd", action: "seek", time: parseFloat(this.value), user: myName });
+                }
+            });
+
+            setInterval(function () {
+                let cur = 0;
+                let dur = 0;
+                const rawAudio = document.getElementById("rawAudio");
+                const isMp3 = curIdx >= 0 && queue[curIdx] && queue[curIdx].videoId.match(/\.(mp3|wav|ogg|m4a)$/i);
+                if (curIdx >= 0 && queue[curIdx]) {
+                    if (isMp3 && rawAudio) {
+                        cur = rawAudio.currentTime || 0;
+                        dur = rawAudio.duration || 0;
+                    } else if (ytReady && ytPlayer && ytPlayer.getCurrentTime) {
+                        cur = ytPlayer.getCurrentTime();
+                        dur = ytPlayer.getDuration ? ytPlayer.getDuration() : 0;
+                    }
+                }
+                if (seekClient) {
+                    seekClient.max = dur || 100;
+                    seekClient.value = cur;
+                }
+                const f = function (t) {
+                    return (
+                        Math.floor(t / 60) +
+                        ":" +
+                        Math.floor(t % 60)
+                            .toString()
+                            .padStart(2, "0")
+                    );
+                };
+                if (seekTimeClient) seekTimeClient.textContent = f(cur) + "/" + (dur > 0 ? f(dur) : "--:--");
+            }, 500);
+
+            function connectTwitch() {
+                logChat("SISTEMA", "🔗 Conectando ao Twitch chat...", true, "#ffdd57");
+                twitchWs = new WebSocket("wss://irc-ws.chat.twitch.tv:443");
+
+                //senhas importantes
+
+                twitchWs.onopen = function () {
+                    logChat("SISTEMA", "✅ WebSocket conectado. Enviando credenciais...", true, "#5de89a");
+                    twitchWs.send(`PASS oauth:m86lajvmo1az9wv7xi0dgpxze1tdsd`);
+                    twitchWs.send(`NICK jonhcreator2`);
+                    twitchWs.send(`JOIN #${CHANNEL}`);
+                    twitchWs.send("CAP REQ :twitch.tv/tags");
+                    twitchWs.send("CAP REQ :twitch.tv/commands");
+                };
+
+                twitchWs.onerror = function (err) {
+                    logChat("SISTEMA", `❌ Erro Twitch websocket. Conexão falhou.`, true, "#ff7070");
+                    twitchWs = null;
+                };
+
+                twitchWs.onmessage = async function (e) {
+                    const messages = e.data.trim().split("\r\n");
+
+                    for (let raw of messages) {
+                        raw = raw.trim();
+                        if (!raw) continue;
+
+                        if (raw.startsWith("PING")) {
+                            twitchWs.send("PONG :tmi.twitch.tv");
+                            continue;
+                        }
+
+                        let tags = {};
+                        let messagePart = raw;
+
+                        if (raw.startsWith("@")) {
+                            const tagEnd = raw.indexOf(" :");
+                            if (tagEnd !== -1) {
+                                const tagStr = raw.substring(1, tagEnd);
+                                tagStr.split(";").forEach(function (t) {
+                                    const p = t.split("=");
+                                    tags[p[0]] = p[1] || "";
+                                });
+                                messagePart = raw.substring(tagEnd + 1);
+                            }
+                        }
+
+                        const m = messagePart.match(/:([\w]+)![\w]+@[\w]+\.tmi\.twitch\.tv PRIVMSG #[\w]+ :(.*)/);
+                        if (!m) {
+                            if (raw.includes("aceboladoo_") && raw.includes("NOTICE")) {
+                                logChat("SISTEMA", "⚠️ Aviso do servidor Twitch recebido", true, "#ffb347");
+                            }
+                            continue;
+                        }
+
+                        const twitchUser = m[1].toLowerCase();
+                        const msg = m[2].trim();
+                        const rawColor = tags.color && tags.color.startsWith("#") ? tags.color : null;
+                        const color = rawColor || "#00aaff";
+                        const isMod = tags.mod === "1" || (tags.badges && tags.badges.includes("moderator"));
+
+                        if (isMod) twitchMods.add(twitchUser);
+                        if (!myTwitchName) myTwitchName = twitchUser;
+                        if (rawColor) {
+                            twitchColors[twitchUser] = rawColor;
+                            localStorage.setItem("cimpTwitchColors", JSON.stringify(twitchColors));
+                        }
+                        if (!twitchUsers.has(twitchUser)) {
+                            twitchUsers.add(twitchUser);
+                            localStorage.setItem("cimpTwitchUsers", JSON.stringify(Array.from(twitchUsers)));
+                        }
+
+                        if (msg.toLowerCase().startsWith("%cimp")) {
+                            const payload = msg.slice(5).trim();
+                            const parts = payload.split(" ");
+                            const action = parts[0] ? parts[0].toLowerCase() : "";
+                            const arg = parts.slice(1).join(" ");
+
+                            if (action === "ajuda" || action === "help") {
+                                sendTwitchMessage(`@${twitchUser} %cimp ajuda | %cimp give (quantidade) @usuario | %cimp ban @usuario | %cimp pontos @usuario | %cimp skip | %cimp trocar | %cimp gif (nome) | %cimp tocando | %cimp lista | %cimp (link/busca)
+
+`);
+                                continue;
+                            }
+
+                            if (action === "give" && arg) {
+                                const amount = parseInt(parts[1], 10);
+                                const target = parts[parts.length - 1].replace("@", "").toLowerCase();
+                                if (!target || isNaN(amount) || amount <= 0) {
+                                    sendTwitchMessage(`@${twitchUser} Uso: %cimp give (quantidade) @usuario`);
+                                    continue;
+                                }
+                                if (target === twitchUser) {
+                                    sendTwitchMessage(`@${twitchUser} você não pode dar pontos a si mesmo besta.`);
+                                    continue;
+                                }
+                                if (getUserPoints(twitchUser) < amount) {
+                                    sendTwitchMessage(`@${twitchUser} pobre.`);
+                                    continue;
+                                }
+                                spendPoints(twitchUser, amount);
+                                addPoints(target, amount);
+                                sendTwitchMessage(`@${twitchUser} deu ${amount} Cimps para @${target}`);
+                                continue;
+                            }
+
+                            if (action === "ban" && arg) {
+                                if (isMod || isHost) {
+                                    const target = arg.replace("@", "").toLowerCase();
+                                    banUser(target);
+                                    sendTwitchMessage(`@${twitchUser} baniu @${target} anga `);
+                                } else {
+                                    sendTwitchMessage(`@${twitchUser} seja mod primeiro`);
+                                }
+                                continue;
+                            }
+
+                            if (action === "pontos") {
+                                const target = arg ? arg.replace("@", "").toLowerCase() : twitchUser;
+                                const amount = getUserPoints(target);
+                                sendTwitchMessage(`@${twitchUser} ${target} tem ${amount} Cimps`);
+                                continue;
+                            }
+
+                            if (action === "tocando") {
+                                if (curIdx >= 0 && queue[curIdx]) {
+                                    const it = queue[curIdx];
+                                    sendTwitchMessage(
+                                        `@${twitchUser} Tocando agora: "${it.title}" pedido por ${it.user}`
+                                    );
+                                } else {
+                                    sendTwitchMessage(`@${twitchUser} Nenhum vídeo tocando no momento.`);
+                                }
+                                continue;
+                            }
+
+                            if (action === "lista") {
+                                const cnt = queue.length;
+                                if (cnt === 0) {
+                                    sendTwitchMessage(`@${twitchUser} A fila está vazia.`);
+                                } else {
+                                    let nextIdx = curIdx === -1 ? 0 : curIdx + 1;
+                                    if (nextIdx >= queue.length) nextIdx = 0;
+                                    const n = queue[nextIdx];
+                                    sendTwitchMessage(
+                                        `@${twitchUser} Há ${cnt} músicas na fila. Próxima: "${n.title}" pedido por ${n.user}`
+                                    );
+                                }
+                                continue;
+                            }
+
+                            if (action === "skip") {
+                                if (isMod || getUserPoints(twitchUser) >= 50) {
+                                    if (!isMod) spendPoints(twitchUser, 50);
+                                    if (isHost) nextVideo();
+                                    else sendCmd("skip", { user: twitchUser });
+                                    sendTwitchMessage(`@${twitchUser} pulou o video JAJA `);
+                                } else {
+                                    sendTwitchMessage(`@${twitchUser} Seja mais rico`);
+                                }
+                                continue;
+                            }
+
+                            if (action === "trocar") {
+                                if (getUserPoints(twitchUser) >= 50) {
+                                    spendPoints(twitchUser, 50);
+                                    if (isHost) {
+                                        queue = queue.sort(function () {
+                                            return Math.random() - 0.5;
+                                        });
+                                        renderQueue();
+                                    } else sendCmd("trocar", { user: twitchUser });
+                                    sendTwitchMessage(`@${twitchUser} fila trocada`);
+                                } else {
+                                    sendTwitchMessage(`@${twitchUser} Tenha mais dinheiros`);
+                                }
+                                continue;
+                            }
+
+                            if (action === "gif" && arg) {
+                                if (getUserPoints(twitchUser) >= 20) {
+                                    spendPoints(twitchUser, 20);
+                                    if (isHost) setQueueGif(arg);
+                                    else sendCmd("gif", { user: twitchUser, gifName: arg });
+                                    sendTwitchMessage(`@${twitchUser} trocou o gif pra ${arg}`);
+                                } else {
+                                    sendTwitchMessage(`@${twitchUser} bixo pobre`);
+                                }
+                                continue;
+                            }
+
+                            if (
+                                payload &&
+                                !["ajuda", "help", "give", "ban", "pontos", "skip", "trocar", "gif"].includes(action)
+                            ) {
+                                await addToQueue(payload, twitchUser, color, true);
+                                continue;
+                            }
+                        } else {
+                            logChat(twitchUser, msg, false, color, isMod);
+                        }
+                    }
+                };
+
+                twitchWs.onclose = function (event) {
+                    logChat(
+                        "SISTEMA",
+                        `🔴 Twitch chat desconectado (code ${event.code}). Reconectando em 5s...`,
+                        true,
+                        "#ff7070"
+                    );
+                    twitchWs = null;
+                    setTimeout(connectTwitch, 5000);
+                };
             }
-        } else {
-            logChat(twitchUser, msg, false, color, isMod);
-        }
-    }
-  };
-  
-  twitchWs.onclose = function(event) { 
-    logChat('SISTEMA', `🔴 Twitch chat desconectado (code ${event.code}). Reconectando em 5s...`, true, '#ff7070');
-    twitchWs = null;
-    setTimeout(connectTwitch, 5000); 
-  };
-}
 
-  
-function playPing() {
-  if(!config.bpm) return;
-  try{ const audioCtx = new (window.AudioContext||window.webkitAudioContext)(); const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain(); osc.connect(gain); gain.connect(audioCtx.destination); osc.frequency.setValueAtTime(800,audioCtx.currentTime); gain.gain.setValueAtTime(0.1,audioCtx.currentTime); osc.start(); osc.stop(audioCtx.currentTime+0.1); }catch(e){}
-}
+            function playPing() {
+                if (!config.bpm) return;
+                try {
+                    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+                    osc.connect(gain);
+                    gain.connect(audioCtx.destination);
+                    osc.frequency.setValueAtTime(800, audioCtx.currentTime);
+                    gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+                    osc.start();
+                    osc.stop(audioCtx.currentTime + 0.1);
+                } catch (e) {}
+            }
 
-function playPing() {
-  if(!config.bpm) return;
-  try{ const audioCtx = new (window.AudioContext||window.webkitAudioContext)(); const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain(); osc.connect(gain); gain.connect(audioCtx.destination); osc.frequency.setValueAtTime(800,audioCtx.currentTime); gain.gain.setValueAtTime(0.1,audioCtx.currentTime); osc.start(); osc.stop(audioCtx.currentTime+0.1); }catch(e){}
-}
+            function playPing() {
+                if (!config.bpm) return;
+                try {
+                    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+                    osc.connect(gain);
+                    gain.connect(audioCtx.destination);
+                    osc.frequency.setValueAtTime(800, audioCtx.currentTime);
+                    gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+                    osc.start();
+                    osc.stop(audioCtx.currentTime + 0.1);
+                } catch (e) {}
+            }
 
-function logChat(user, text, isCmd = false, color = '#00aaff', isMod = false) {
-  const box = document.getElementById('chatbox');
-  const points = getUserPoints(user);
-  const modTag = isMod ? ' <span style="color:#f88529">[MOD]</span>' : '';
-  const safeColor = sanitizeColor(color);
-  
-  const d = document.createElement('div');
-  d.className = 'cm';
-  d.innerHTML = `<span class="cmu" style="color:${safeColor}">${esc(user)}${modTag} <span style="color:#f88529"> (${points} Cimps)</span></span>: <span class="cmt">${esc(text)}</span>`;
-  
-  box.appendChild(d);
-  box.scrollTop = box.scrollHeight;
-  if(box.childNodes.length > 60) box.firstChild.remove();
-  setTimeout(function() {
-      if (d.parentNode) d.parentNode.removeChild(d);
-  }, 10000);
-}
+            function logChat(user, text, isCmd = false, color = "#00aaff", isMod = false) {
+                const box = document.getElementById("chatbox");
+                const points = getUserPoints(user);
+                const modTag = isMod ? ' <span style="color:#f88529">[MOD]</span>' : "";
+                const safeColor = sanitizeColor(color);
 
-function logAdminAction(user, action) {
-  let emoji = '⚙️';
-  if(action.includes('Pulou')) emoji = '⏭️';
-  if(action.includes('Pausou') || action.includes('Despausou')) emoji = '⏸️';
-  if(action.includes('Limpar')) emoji = '🗑️';
-  if(action.includes('trocou')) emoji = '🔀';
-  if(action.includes('BAN')) emoji = '🔨';
-  
-  logChat('SISTEMA', `${emoji} ${user} ${action}`, true, '#ffdd57');
-  
-  if (isHost) {
-      clientConnections.forEach(function(c) {
-          if (c.open) c.send({type: 'syslog', user: 'SISTEMA', text: `${emoji} ${user} ${action}`, color: '#ffdd57'});
-      });
-  }
-}
+                const d = document.createElement("div");
+                d.className = "cm";
+                d.innerHTML = `<span class="cmu" style="color:${safeColor}">${esc(user)}${modTag} <span style="color:#f88529"> (${points} Cimps)</span></span>: <span class="cmt">${esc(text)}</span>`;
 
-function toast(msg, type='') {
-  const c = document.getElementById('toasts'); const t = document.createElement('div'); t.className='toast '+type; t.textContent=msg;
-  c.appendChild(t); setTimeout(function(){t.remove();},3000);
-}
-</script>
-</body>
+                box.appendChild(d);
+                box.scrollTop = box.scrollHeight;
+                if (box.childNodes.length > 60) box.firstChild.remove();
+                setTimeout(function () {
+                    if (d.parentNode) d.parentNode.removeChild(d);
+                }, 10000);
+            }
+
+            function logAdminAction(user, action) {
+                let emoji = "⚙️";
+                if (action.includes("Pulou")) emoji = "⏭️";
+                if (action.includes("Pausou") || action.includes("Despausou")) emoji = "⏸️";
+                if (action.includes("Limpar")) emoji = "🗑️";
+                if (action.includes("trocou")) emoji = "🔀";
+                if (action.includes("BAN")) emoji = "🔨";
+
+                logChat("SISTEMA", `${emoji} ${user} ${action}`, true, "#ffdd57");
+
+                if (isHost) {
+                    clientConnections.forEach(function (c) {
+                        if (c.open)
+                            c.send({
+                                type: "syslog",
+                                user: "SISTEMA",
+                                text: `${emoji} ${user} ${action}`,
+                                color: "#ffdd57",
+                            });
+                    });
+                }
+            }
+
+            function toast(msg, type = "") {
+                const c = document.getElementById("toasts");
+                const t = document.createElement("div");
+                t.className = "toast " + type;
+                t.textContent = msg;
+                c.appendChild(t);
+                setTimeout(function () {
+                    t.remove();
+                }, 3000);
+            }
+        </script>
+    </body>
 </html>
