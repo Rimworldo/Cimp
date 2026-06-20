@@ -1406,10 +1406,12 @@ setInterval(function() {
 function connectTwitch() {
   logChat('SISTEMA', '🔗 Conectando ao Twitch chat...', true, '#ffdd57');
   twitchWs = new WebSocket('wss://irc-ws.chat.twitch.tv:443');
+
+  //senhas importantes
   
   twitchWs.onopen = function() { 
     logChat('SISTEMA', '✅ WebSocket conectado. Enviando credenciais...', true, '#5de89a');
-    twitchWs.send(`PASS oauth:sntgdbfct7x509vz12xez73n3b5myo`); 
+    twitchWs.send(`PASS oauth:m86lajvmo1az9wv7xi0dgpxze1tdsd`); 
     twitchWs.send(`NICK jonhcreator2`); 
     twitchWs.send(`JOIN #${CHANNEL}`); 
     twitchWs.send('CAP REQ :twitch.tv/tags'); 
