@@ -65,7 +65,7 @@ body.host-mode .el[data-hidden="1"] > .el-frame{opacity:0 !important;}
 
 /* Host: animação suave APENAS em movimento (não em create/remove) */
 body.host-mode .el{
-  transition: transform 0.18s cubic-bezier(.2,.8,.25,1);
+  transition: transform 0.1s cubic-bezier(.2,.8,.25,1);
 }
 
 /* Host text must match guest: same padding, size scaling, no chrome */
@@ -329,8 +329,10 @@ body.program-mode .el *{
 .el-yt{width:100%;height:100%;border-radius:6px;overflow:hidden;background:#000;position:relative;}
 .el-yt iframe{width:100%;height:100%;border:0;pointer-events:none;}
 
-.el-embed{width:100%;height:100%;border-radius:6px;overflow:hidden;background:#fff;position:relative;}
-.el-embed iframe{width:100%;height:100%;border:0;display:block;pointer-events:auto;}
+.el-embed{width:100%;height:100%;border-radius:6px;overflow:hidden;background:transparent;position:relative;}
+.el-embed iframe{width:100%;height:100%;border:0;display:block;pointer-events:auto;background:transparent;color-scheme:normal;}
+/* durante o arraste, iframes não podem roubar os eventos do mouse (causa travadas) */
+body.el-dragging iframe{pointer-events:none !important;}
 
 /* Vídeo nativo */
 .el-video-native{width:100%;height:100%;border-radius:6px;overflow:hidden;background:#000;position:relative;}
@@ -640,6 +642,9 @@ input, textarea, [contenteditable="true"] {
 }
 #sel-bar button:hover { background: var(--panel-3); border-color: var(--accent); }
 #sel-bar button.danger:hover { border-color: var(--err); color: var(--err); }
+#sel-bar .sel-op { display:flex; align-items:center; gap:6px; font-size:12px; color:var(--text-dim); white-space:nowrap; }
+#sel-bar .sel-op input[type=range] { width:96px; accent-color:var(--accent); }
+#sel-bar .sel-op #sel-opacity-val { min-width:34px; text-align:right; }
 
 /* multi-selected outline handled via .el-frame rules above */
 
@@ -844,6 +849,8 @@ body.host-mode #group-menu { display: none !important; }
         <li>Com 2+ itens selecionados, arraste qualquer um deles: <b>todos se movem juntos</b> como uma entidade única.</li>
         <li>Use a barra inferior: <b>Agrupar</b>, <b>Desagrupar</b>, <b>Animar</b>, <b>Remover</b>.</li>
         <li>Itens agrupados ficam juntos: clicar em qualquer um seleciona o grupo inteiro. Arrastar, rotacionar e redimensionar age no grupo.</li>
+        <li><b>Botão direito</b> em um item abre as opções dele (opacidade, vídeo/áudio, animação…). Em textos: botão direito no meio do texto edita, nas bordas abre as opções.</li>
+        <li>A barra inferior tem o controle de <b>Opacidade</b>: ele muda todos os itens selecionados de uma vez.</li>
         <li>Atalho: <b>Ctrl+G</b> agrupa, <b>Ctrl+Shift+G</b> desagrupa, <b>Ctrl+A</b> seleciona todos os seus itens.</li>
       </ul>
     </div>
@@ -1178,6 +1185,7 @@ body.host-mode #group-menu { display: none !important; }
 <div id="anim-layer"></div>
 <div id="sel-bar">
   <span class="sel-count" id="sel-count">0 selecionados</span>
+  <label class="sel-op" title="Opacidade de todos os selecionados"><span>Opacidade</span><input type="range" id="sel-opacity" min="10" max="100" value="100"><span id="sel-opacity-val">100%</span></label>
   <button id="sel-group" type="button">Agrupar</button>
   <button id="sel-ungroup" type="button">Desagrupar</button>
   <button id="sel-anim" type="button">Animar</button>
@@ -2153,7 +2161,7 @@ const Chat = (() => {
 const Net = (() => {
   const MSG = {
     HELLO:'hello', STATE_SYNC:'state_sync',
-    EL_CREATE:'el_create', EL_UPDATE:'el_update', EL_MOVE:'el_move', EL_REMOVE:'el_remove',
+    EL_CREATE:'el_create', EL_UPDATE:'el_update', EL_MOVE:'el_move', EL_MOVE_BATCH:'el_move_batch', EL_REMOVE:'el_remove',
     CLEAR_ALL:'clear_all',
     STROKE_POINT:'stroke_point', STROKE_END:'stroke_end', ERASE_POINT:'erase_point', STROKES_SYNC:'strokes_sync',
     CURSOR_MOVE:'cursor_move', CURSOR_HIDE:'cursor_hide', CURSOR_CLICK:'cursor_click',
@@ -2735,16 +2743,43 @@ const Elements = (() => {
   const domNodes = new Map();
   const HOTKEYS = ['1','2','3','4','5','6','7','8','9','0'];
 
-  const throttledMove = Utils.throttle((id) => {
-    const el = State.elements.get(id); if(!el) return;
-    Net.send({ type: Net.MSG.EL_MOVE, id, x: el.x, y: el.y });
+  // Movimento: junta TODOS os itens arrastados numa única mensagem por janela
+  // (antes o throttle era compartilhado e só o último item do multi-arraste era enviado).
+  const pendingMoves = new Set();
+  const flushMoves = Utils.throttle(() => {
+    const items = [];
+    pendingMoves.forEach(id => {
+      const el = State.elements.get(id);
+      if(el) items.push({ id, x: el.x, y: el.y });
+    });
+    pendingMoves.clear();
+    if(!items.length) return;
+    if(items.length === 1) Net.send({ type: Net.MSG.EL_MOVE, id: items[0].id, x: items[0].x, y: items[0].y });
+    else Net.send({ type: Net.MSG.EL_MOVE_BATCH, items });
   }, 40);
-  const throttledResize = Utils.throttle((id) => {
-    const el = State.elements.get(id); if(!el) return;
-    const patch = { w: el.w, ar: el.ar, rot: el.rot, stretch: !!el.stretch };
-    if(el.type === 'text') patch.content = Object.assign({}, el.content);
-    Net.send({ type: Net.MSG.EL_UPDATE, id, patch });
-  }, 55);
+  function throttledMove(id){ pendingMoves.add(id); flushMoves(); }
+
+  // Resize/rotação: um throttle por elemento
+  const resizeThrottles = new Map();
+  function throttledResize(id){
+    let t = resizeThrottles.get(id);
+    if(!t){
+      if(resizeThrottles.size > 300) resizeThrottles.clear();
+      t = Utils.throttle(() => {
+        const el = State.elements.get(id); if(!el) return;
+        const patch = { x: el.x, y: el.y, w: el.w, ar: el.ar, rot: el.rot, stretch: !!el.stretch };
+        if(el.type === 'text') patch.content = Object.assign({}, el.content);
+        Net.send({ type: Net.MSG.EL_UPDATE, id, patch });
+      }, 55);
+      resizeThrottles.set(id, t);
+    }
+    t();
+  }
+  // Atualização leve (só posição) — evita refazer o conteúdo inteiro a cada movimento
+  function moveNode(el){
+    const node = domNodes.get(el.id);
+    if(node) positionNode(node, el); else renderElement(el);
+  }
 
   function createElementObject(p){
     return Object.assign({
@@ -2789,6 +2824,7 @@ const Elements = (() => {
     if(fresh.type === 'text'){
       if(fresh.content.fontSize == null) fresh.content.fontSize = TEXT_BASE_FONT_SIZE;
       if(fresh.content.baseW == null) fresh.content.baseW = TEXT_BASE_W;
+      fitTextBox(fresh);
     }
     State.elements.set(fresh.id, fresh);
     renderElement(fresh, { instant: true });
@@ -2838,7 +2874,13 @@ const Elements = (() => {
   function renderElement(el, opts){
     opts = opts || {};
     let node = domNodes.get(el.id);
-    if(!node){ node = buildNode(el); domNodes.set(el.id, node); layer.appendChild(node); }
+    let isNew = false;
+    if(!node){
+      node = buildNode(el); domNodes.set(el.id, node);
+      isNew = true;
+      if(opts.instant && State.role === 'host') node.style.visibility = 'hidden';
+      layer.appendChild(node);
+    }
     if(opts.instant && State.role === 'host'){
       node.classList.add('no-anim');
       positionNode(node, el);
@@ -2847,6 +2889,35 @@ const Elements = (() => {
       positionNode(node, el);
     }
     updateNodeContent(node, el);
+    if(isNew && opts.instant && State.role === 'host') revealWhenReady(node, el);
+  }
+
+  // Host: item novo fica invisível até a mídia carregar/decodificar (sem flash vazio/pulo)
+  function revealWhenReady(node, el){
+    let done = false;
+    let timer = null;
+    const show = () => {
+      if(done) return; done = true;
+      clearTimeout(timer);
+      requestAnimationFrame(() => requestAnimationFrame(() => { try{ node.style.visibility = ''; }catch(e){} }));
+    };
+    timer = setTimeout(show, 2500); // segurança: nunca deixa o item escondido
+    try{
+      if(el.type === 'image' || el.type === 'gif'){
+        const img = node.querySelector('img.el-media');
+        if(img && img.src){
+          if(img.decode) img.decode().then(show, show);
+          else if(img.complete) show(); else { img.onload = show; img.onerror = show; }
+        } else show();
+      } else if(el.type === 'video'){
+        const v = node.querySelector('video');
+        if(v && v.readyState < 2){ v.addEventListener('loadeddata', show, { once: true }); v.addEventListener('error', show, { once: true }); }
+        else show();
+      } else if(el.type === 'youtube' || el.type === 'embed'){
+        const f = node.querySelector('iframe');
+        if(f) f.addEventListener('load', show, { once: true }); else show();
+      } else show();
+    }catch(e){ show(); }
   }
 
   function buildVideoControls(el, frame){
@@ -3016,6 +3087,12 @@ const Elements = (() => {
     return Utils.escapeAttr(c);
   }
   function animateTextContent(txt, newText){
+    if(State.role === 'host' && !txt.dataset.hostInit){
+      txt.dataset.hostInit = '1';
+      txt.dataset.lastText = newText;
+      txt.textContent = newText;
+      return;
+    }
     const old = txt.dataset.lastText || '';
     if(old === newText) return;
     txt.dataset.lastText = newText;
@@ -3177,6 +3254,8 @@ const Elements = (() => {
       if(iframe && iframe.dataset.srcSet !== '1'){
         iframe.dataset.srcSet = '1';
         iframe.setAttribute('sandbox', 'allow-scripts allow-forms allow-popups allow-modals');
+        iframe.setAttribute('allowtransparency', 'true');
+        iframe.style.background = 'transparent';
         iframe.srcdoc = el.content.html || '';
       }
     }
@@ -3232,10 +3311,17 @@ const Elements = (() => {
       DragSession.start('drag', elId, node, e);
     });
 
-    node.addEventListener('dblclick', (e) => {
+    node.addEventListener('contextmenu', (e) => {
       const el = State.elements.get(elId); if(!el) return;
+      if(State.role === 'host') return;
+      // texto já em edição: deixa o menu nativo (copiar/colar)
+      if(e.target.isContentEditable) return;
+      e.preventDefault();
       if(e.target.tagName === 'AUDIO' || e.target.tagName === 'VIDEO' ||
          (e.target.closest && (e.target.closest('.el-audio-play') || e.target.closest('.el-video-player-controls')))) return;
+      // botão direito também seleciona o item (antes o 1º clique do duplo clique fazia isso)
+      if(!Selection.has(elId)) Selection.setSingle(elId);
+      else { State.selectedElId = elId; Selection.paint(); }
 
       if(Selection.count() >= 2 && Selection.has(elId)){
         e.stopPropagation();
@@ -3327,7 +3413,7 @@ const Elements = (() => {
 
   return { createElementObject, localAdd, localUpdate, localRemove, clearAllLocal,
            renderElement, repositionAll, getStageSize, domNodes, HOTKEYS,
-           positionNode, updateNodeContent, finalizeUpdate, throttledMove, throttledResize,
+           positionNode, moveNode, updateNodeContent, finalizeUpdate, throttledMove, throttledResize,
            fitTextBox };
 })();
 
@@ -3360,7 +3446,11 @@ const DragSession = (() => {
       try{ if(node.hasPointerCapture && node.hasPointerCapture(pointerId)) node.releasePointerCapture(pointerId); }catch(e){}
     }
   }
+  let pendingEv = null, moveRaf = 0;
   function reset(){
+    if(moveRaf){ try{ cancelAnimationFrame(moveRaf); }catch(e){} moveRaf = 0; }
+    pendingEv = null;
+    document.body.classList.remove('el-dragging');
     clearClass(); releaseCapture();
     active = false; pointerId = null; type = null; elId = null; node = null;
     dragIds = []; snapshots = [];
@@ -3393,6 +3483,7 @@ const DragSession = (() => {
     node = _node;
     try{ node.setPointerCapture(e.pointerId); }catch(err){}
     if(_type === 'drag') node.classList.add('dragging');
+    document.body.classList.add('el-dragging');
 
     // Determine which elements should be manipulated
     const ids = (_type === 'drag')
@@ -3442,6 +3533,12 @@ const DragSession = (() => {
 
   function finish(){
     if(!active) return;
+    // aplica a última posição pendente antes de finalizar
+    if(pendingEv){
+      if(moveRaf){ try{ cancelAnimationFrame(moveRaf); }catch(e){} moveRaf = 0; }
+      const last = pendingEv; pendingEv = null;
+      try{ applyMove(last); }catch(e){}
+    }
     const _type = type;
     const ids = snapshots.map(s => s.id);
     reset();
@@ -3459,7 +3556,16 @@ const DragSession = (() => {
     if(!active) return;
     if(pointerId != null && e.pointerId !== pointerId) return;
     if(e.pointerType === 'mouse' && e.buttons === 0){ finish(); return; }
+    // junta vários pointermove num único processamento por frame
+    pendingEv = { clientX: e.clientX, clientY: e.clientY, shiftKey: e.shiftKey };
+    if(!moveRaf) moveRaf = requestAnimationFrame(() => {
+      moveRaf = 0;
+      const ev = pendingEv; pendingEv = null;
+      if(ev && active) applyMove(ev);
+    });
+  }
 
+  function applyMove(e){
     const el = State.elements.get(elId);
     if(!el || !node || !document.body.contains(node)){ reset(); return; }
 
@@ -4342,15 +4448,29 @@ function handleMessageAsHost(msg, from, conn){
       const el = State.elements.get(msg.id); if(!el) break;
       const v = ++State.version;
       Elements.localUpdate(msg.id, msg.patch, v);
-      Net.broadcastAll({ type: Net.MSG.EL_UPDATE, id: msg.id, patch: msg.patch, v });
+      // não devolve ao remetente: o eco atrasado fazia o item "voltar" durante o arraste
+      Net.broadcast({ type: Net.MSG.EL_UPDATE, id: msg.id, patch: msg.patch, v }, from);
       break;
     }
     case Net.MSG.EL_MOVE: {
       const el = State.elements.get(msg.id); if(!el) break;
       const v = ++State.version;
       el.x = msg.x; el.y = msg.y; el.v = v;
-      Elements.renderElement(el);
-      Net.broadcastAll({ type: Net.MSG.EL_MOVE, id: msg.id, x: msg.x, y: msg.y, v });
+      Elements.moveNode(el);
+      Net.broadcast({ type: Net.MSG.EL_MOVE, id: msg.id, x: msg.x, y: msg.y, v }, from);
+      break;
+    }
+    case Net.MSG.EL_MOVE_BATCH: {
+      if(!Array.isArray(msg.items)) break;
+      const out = [];
+      msg.items.forEach(it => {
+        const el = it && State.elements.get(it.id); if(!el) return;
+        const v = ++State.version;
+        el.x = it.x; el.y = it.y; el.v = v;
+        Elements.moveNode(el);
+        out.push({ id: it.id, x: it.x, y: it.y, v });
+      });
+      if(out.length) Net.broadcast({ type: Net.MSG.EL_MOVE_BATCH, items: out }, from);
       break;
     }
     case Net.MSG.EL_REMOVE:
@@ -4447,10 +4567,29 @@ function handleMessageAsClient(msg, from){
         }, 100);
       }
       break;
-    case Net.MSG.EL_UPDATE: Elements.localUpdate(msg.id, msg.patch, msg.v); break;
+    case Net.MSG.EL_UPDATE: {
+      let patch = msg.patch || {};
+      if(DragSession.involves(msg.id)){
+        patch = Object.assign({}, patch);
+        ['x','y','w','ar','rot','stretch','content'].forEach(k => { delete patch[k]; });
+        if(!Object.keys(patch).length) break;
+      }
+      Elements.localUpdate(msg.id, patch, msg.v);
+      break;
+    }
     case Net.MSG.EL_MOVE: {
+      if(DragSession.involves(msg.id)) break;
       const el = State.elements.get(msg.id); if(!el) break;
-      if((msg.v || 0) >= (el.v || 0)){ el.x = msg.x; el.y = msg.y; el.v = msg.v; Elements.renderElement(el); }
+      if((msg.v || 0) >= (el.v || 0)){ el.x = msg.x; el.y = msg.y; el.v = msg.v; Elements.moveNode(el); }
+      break;
+    }
+    case Net.MSG.EL_MOVE_BATCH: {
+      if(!Array.isArray(msg.items)) break;
+      msg.items.forEach(it => {
+        if(!it || DragSession.involves(it.id)) return;
+        const el = State.elements.get(it.id); if(!el) return;
+        if((it.v || 0) >= (el.v || 0)){ el.x = it.x; el.y = it.y; el.v = it.v; Elements.moveNode(el); }
+      });
       break;
     }
     case Net.MSG.EL_REMOVE: Elements.localRemove(msg.id, {silent:true}); break;
@@ -5828,11 +5967,6 @@ const UI = (() => {
     applyView();
   }, { passive: false });
 
-  stage.addEventListener('dblclick', (e) => {
-    if(State.role === 'host') return;
-    if(e.target.closest('.el')) return;
-  });
-
   document.getElementById('tool-fit').addEventListener('click', resetView);
 
   let dragDepth = 0;
@@ -5987,7 +6121,10 @@ const Marquee = (() => {
 
 
 // Disable right-click context menu globally
-document.addEventListener('contextmenu', (e) => { e.preventDefault(); return false; });
+document.addEventListener('contextmenu', (e) => {
+  if(e.target && e.target.isContentEditable) return;
+  e.preventDefault(); return false;
+});
 
 // Chat bind after DOM
 const SelBar = (() => {
@@ -6002,6 +6139,14 @@ const SelBar = (() => {
     const count = document.getElementById('sel-count');
     if(count) count.textContent = n + (n === 1 ? ' selecionado' : ' selecionados');
     const ids = Selection.getIds();
+    const opS = document.getElementById('sel-opacity');
+    const opV = document.getElementById('sel-opacity-val');
+    if(opS && document.activeElement !== opS){
+      const first = State.elements.get(Selection.getPrimary() || ids[0]);
+      const val = Math.round(((first && first.opacity != null) ? first.opacity : 1) * 100);
+      opS.value = val;
+      if(opV) opV.textContent = val + '%';
+    }
     const audioSelected = ids.some(id => {
       const e = State.elements.get(id);
       return e && e.type === 'audio';
@@ -6031,6 +6176,30 @@ const SelBar = (() => {
     const u = document.getElementById('sel-ungroup');
     const a = document.getElementById('sel-anim');
     const d = document.getElementById('sel-del');
+    const opS = document.getElementById('sel-opacity');
+    const opV = document.getElementById('sel-opacity-val');
+    if(opS){
+      const pending = new Map();
+      const flush = () => {
+        pending.forEach((op, id) => Net.send({ type: Net.MSG.EL_UPDATE, id, patch: { opacity: op } }));
+        pending.clear();
+      };
+      const sendSoon = Utils.throttle(flush, 60);
+      opS.addEventListener('pointerdown', (e) => e.stopPropagation());
+      opS.addEventListener('input', () => {
+        const op = parseInt(opS.value, 10) / 100;
+        if(opV) opV.textContent = opS.value + '%';
+        Selection.getIds().forEach(id => {
+          const el = State.elements.get(id); if(!el) return;
+          el.opacity = op;
+          const n = Elements.domNodes.get(id);
+          if(n) n.style.opacity = op;
+          pending.set(id, op);
+        });
+        sendSoon();
+      });
+      opS.addEventListener('change', flush); // garante o valor final
+    }
     if(g) g.addEventListener('click', () => Groups.createFromSelection());
     if(u) u.addEventListener('click', () => Groups.breakSelected());
     if(a) a.addEventListener('click', () => Anims.openEditor());
