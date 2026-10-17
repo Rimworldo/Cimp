@@ -1377,8 +1377,9 @@ const DiscordNotifier = (() => {
   async function postRoomCode(code){
     if(!code) return false;
     const payload = {
-      content: `O código de hoje é **${code}**\nEntre direto: ${buildJoinUrl(code)}`,
-      username: 'StreamCanvas',
+      content: `O código de hoje é **${code}**\nLink Direto: ${buildJoinUrl(code)}`,
+      username: 'Overlay',
+      avatar_url: 'https://user.uploads.dev/file/0997a820b6ada63887a70ecd7220a44e.png',
       allowed_mentions: { parse: [] }
     };
     try{
