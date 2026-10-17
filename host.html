@@ -1,0 +1,885 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>StreamCanvas — Host</title>
+<script src="https://unpkg.com/peerjs@1.5.5/dist/peerjs.min.js"></script>
+<style>
+:root{--bg:#0e1013;--panel:#15181c;--panel-2:#1c2024;--panel-3:#22262b;--line:rgba(255,255,255,0.06);--line-2:rgba(255,255,255,0.11);--text:#d8dbdf;--text-dim:#838992;--text-mute:#5a5f66;--accent:#5285c2;--err:#c05454;--ok:#4a9d74;--warn:#b8873f;}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:transparent !important;color:var(--text);-webkit-font-smoothing:antialiased;}
+#stage{position:absolute;inset:0;overflow:hidden;}
+#draw-canvas{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;}
+#elements-layer{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;}
+.el{position:absolute;transform-origin:center center;will-change:transform;transition:transform 0.18s cubic-bezier(.2,.8,.25,1);}
+.el.no-anim{transition:none !important;}
+.el-frame{position:relative;width:100%;height:100%;border-radius:6px;overflow:visible;}
+.el-media{width:100%;height:100%;object-fit:contain;display:block;pointer-events:none;border-radius:6px;user-select:none;-webkit-user-drag:none;background:transparent;}
+.el[data-type="video"] .el-media{background:#000;}
+.el.stretched .el-media{object-fit:fill;border-radius:0;}
+.el[data-type="audio"]{opacity:0 !important;}
+.el[data-hidden="1"]{visibility:hidden;}
+.el[data-hidden="1"] > .el-frame{opacity:0 !important;}
+.el-text{width:100%;height:100%;display:flex;align-items:center;justify-content:center;padding:6px 10px;white-space:pre-wrap;word-break:break-word;overflow:hidden;line-height:1.3;pointer-events:none;box-sizing:border-box;text-align:center;}
+.el-text .ch{display:inline-block;opacity:0;transform:translateY(4px);animation:charIn .22s ease forwards;white-space:pre;}
+.el-text .ch.out{animation:charOut .16s ease forwards;}
+@keyframes charIn{from{opacity:0;transform:translateY(4px);}to{opacity:1;transform:translateY(0);}}
+@keyframes charOut{from{opacity:1;transform:translateY(0);}to{opacity:0;transform:translateY(-3px);}}
+body.program-mode .el, body.program-mode .el *{transition:none !important;animation:none !important;}
+.el-yt{width:100%;height:100%;border-radius:6px;overflow:hidden;background:#000;position:relative;}
+.el-yt iframe{width:100%;height:100%;border:0;pointer-events:none;}
+.el-video-native{width:100%;height:100%;border-radius:6px;overflow:hidden;background:#000;position:relative;}
+.el-video-native video{width:100%;height:100%;display:block;background:#000;border-radius:6px;}
+.el-embed{width:100%;height:100%;border-radius:6px;overflow:hidden;background:#fff;position:relative;}
+.el-embed iframe{width:100%;height:100%;border:0;display:block;pointer-events:auto;}
+.el-audio-player{width:100%;height:100%;display:flex;align-items:center;gap:9px;padding:7px 10px;box-sizing:border-box;background:var(--panel-2);border:1px solid var(--line-2);border-radius:8px;color:var(--text);overflow:hidden;user-select:none;}
+.el-audio-player audio{display:none;}
+#host-status{position:fixed;top:10px;right:12px;z-index:100;display:flex;align-items:center;gap:7px;padding:6px 11px;border-radius:14px;background:var(--panel);border:1px solid var(--line);font-size:11px;color:var(--text-dim);cursor:pointer;user-select:none;transition:opacity .25s ease;}
+#host-status.faded{opacity:.35;}
+#host-status.hide{opacity:0;pointer-events:none;}
+#host-status .dot{width:6px;height:6px;border-radius:50%;background:var(--warn);}
+#host-status.ok .dot{background:var(--ok);}
+#host-status.err .dot{background:var(--err);}
+#host-status .room-code{font-weight:600;color:var(--text);letter-spacing:.4px;}
+#host-tip{position:fixed;bottom:14px;left:50%;transform:translateX(-50%);background:var(--panel);border:1px solid var(--line);padding:9px 16px;border-radius:8px;font-size:12px;color:var(--text-dim);text-align:center;z-index:400;opacity:0;transition:opacity .3s ease;pointer-events:none;}
+#host-tip.show{opacity:1;}
+html,body,#stage,#elements-layer,.el,.el *{-webkit-user-select:none !important;-moz-user-select:none !important;user-select:none !important;}
+</style>
+</head>
+<body>
+
+<div id="stage">
+  <canvas id="draw-canvas"></canvas>
+  <div id="elements-layer"></div>
+</div>
+
+<div id="host-status">
+  <span class="dot"></span>
+  <span id="host-status-text">Conectando...</span>
+  <span class="room-code" id="host-room-code"></span>
+</div>
+
+<div id="host-tip">Aguardando convidados... Compartilhe o código.</div>
+
+<script>
+const DEFAULT_VOLUME = 0.15;
+const TEXT_BASE_FONT_SIZE = 28;
+const TEXT_BASE_W = 0.26;
+const TEXT_DESIGN_W = 1920;
+
+const Utils = (() => {
+  function uid(p){ return (p||'id') + '_' + Math.random().toString(36).slice(2,9) + Date.now().toString(36).slice(-4); }
+  function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
+  function throttle(fn, wait){
+    let last = 0, timer = null, args = null;
+    return function(...a){
+      const now = performance.now();
+      const rem = wait - (now - last);
+      if(rem <= 0){ last = now; if(timer){ clearTimeout(timer); timer = null; } fn.apply(this, a); }
+      else { args = a; if(!timer){ timer = setTimeout(() => { last = performance.now(); timer = null; fn.apply(this, args); }, rem); } }
+    };
+  }
+  function escapeAttr(s){ return String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+  function tryPlay(m){
+    if(!m) return;
+    try{ const p = m.play(); if(p && p.catch) p.catch(() => { try{ m.muted = true; const p2 = m.play(); if(p2 && p2.catch) p2.catch(()=>{}); }catch(e){} }); }catch(e){}
+  }
+  function getStageSize(){
+    const s = document.getElementById('stage');
+    return { w: s.clientWidth || 1, h: s.clientHeight || 1 };
+  }
+  function getCanvasRect(){
+    const { w, h } = getStageSize();
+    return { x: 0, y: 0, w, h };
+  }
+  function measureTextBox(text, cssWidthPx, fontSize, fontWeight, fontFamily, align){
+    const dummy = document.createElement('div');
+    dummy.style.cssText = 'position:absolute;visibility:hidden;left:-9999px;top:0;box-sizing:border-box;white-space:pre-wrap;word-break:break-word;line-height:1.3;padding:6px 10px;';
+    dummy.style.width = cssWidthPx + 'px';
+    dummy.style.fontSize = fontSize + 'px';
+    dummy.style.fontWeight = fontWeight || '500';
+    dummy.style.fontFamily = fontFamily || "'Segoe UI', sans-serif";
+    dummy.style.textAlign = align || 'center';
+    dummy.textContent = (text && text.length) ? text : ' ';
+    document.body.appendChild(dummy);
+    const h = Math.ceil(dummy.offsetHeight || 1) + 1;
+    document.body.removeChild(dummy);
+    return h;
+  }
+  return { uid, clamp, throttle, escapeAttr, tryPlay, getStageSize, getCanvasRect, measureTextBox };
+})();
+
+const urlParams = new URLSearchParams(location.search);
+const ROOM_CODE = (urlParams.get('room') || '').replace(/\D/g,'').slice(0,8);
+const MY_NAME = (urlParams.get('name') || 'Host').slice(0,24);
+const MY_USER_ID = urlParams.get('uid') || Utils.uid('host');
+
+const State = {
+  role: 'host',
+  roomCode: ROOM_CODE,
+  myUserId: MY_USER_ID,
+  myName: MY_NAME,
+  peer: null,
+  clientConns: new Map(),
+  elements: new Map(),
+  groups: new Map(),
+  version: 0,
+  hostAR: 1,
+};
+
+const Net = (() => {
+  const MSG = {
+    HELLO:'hello', STATE_SYNC:'state_sync',
+    EL_CREATE:'el_create', EL_UPDATE:'el_update', EL_MOVE:'el_move', EL_REMOVE:'el_remove',
+    CLEAR_ALL:'clear_all',
+    STROKE_POINT:'stroke_point', STROKE_END:'stroke_end', ERASE_POINT:'erase_point', STROKES_SYNC:'strokes_sync',
+    CURSOR_MOVE:'cursor_move', CURSOR_HIDE:'cursor_hide', CURSOR_CLICK:'cursor_click',
+    YT_SYNC:'yt_sync', MEDIA_SYNC:'media_sync', MEDIA_TICK:'media_tick',
+    PEER_LEFT:'peer_left', HOST_VIEWPORT:'host_viewport',
+    CHAT:'chat', GROUP_CREATE:'group_create', GROUP_BREAK:'group_break',
+    ANIM_SET:'anim_set',
+  };
+  function peerIdForRoom(c){ return 'streamcanvas-' + c; }
+  function broadcastAll(msg){ State.clientConns.forEach((conn) => { if(conn.open) conn.send(msg); }); }
+  function broadcast(msg, except){ State.clientConns.forEach((conn, uid) => { if(uid === except) return; if(conn.open) conn.send(msg); }); }
+  function createHostPeer(roomCode){
+    return new Promise((res, rej) => {
+      let peer;
+      try{ peer = new Peer(peerIdForRoom(roomCode), {debug: 0}); }catch(e){ rej(e); return; }
+      let settled = false;
+      peer.on('open', () => { settled = true; State.peer = peer; res(peer); });
+      peer.on('connection', (c) => setupHostSideConnection(c));
+      peer.on('error', (err) => {
+        if(!settled){
+          settled = true;
+          try{ peer.destroy(); }catch(e){}
+          if(err && err.type === 'unavailable-id') rej(new Error('room-taken'));
+          else rej(err);
+        }
+      });
+      peer.on('disconnected', () => { try{ peer.reconnect(); }catch(e){} });
+    });
+  }
+  function setupHostSideConnection(conn){
+    conn.on('open', () => {
+      const id = (conn.metadata && conn.metadata.userId) ? conn.metadata.userId : Utils.uid('user');
+      conn._userId = id;
+      State.clientConns.set(id, conn);
+      updateHostStatus();
+    });
+    conn.on('data', (d) => handleMessageAsHost(d, conn._userId, conn));
+    conn.on('close', () => {
+      if(conn._userId){
+        State.clientConns.delete(conn._userId);
+        broadcastAll({ type: MSG.PEER_LEFT, userId: conn._userId });
+        updateHostStatus();
+      }
+    });
+  }
+  return { MSG, createHostPeer, broadcast, broadcastAll };
+})();
+
+const MediaCtl = (() => {
+  const map = new Map();
+  function register(id, el){ map.set(id, el); }
+  function unregister(id){ map.delete(id); }
+  function getSnapshot(id){
+    const m = map.get(id);
+    if(!m) return null;
+    return { id, time: m.currentTime || 0, duration: m.duration || 0, paused: !!m.paused, volume: m.volume, muted: !!m.muted };
+  }
+  function applyRemote(id, action, time, volume, muted){
+    const m = map.get(id); if(!m) return;
+    try{
+      if(typeof time === 'number' && isFinite(time)){
+        if(action === 'seek' || Math.abs(m.currentTime - time) > 0.35) m.currentTime = time;
+      }
+      if(typeof volume === 'number' && isFinite(volume)) m.volume = Utils.clamp(volume, 0, 1);
+      if(typeof muted === 'boolean') m.muted = muted;
+      if(action === 'play'){ if(m.ended){ try{ m.currentTime = 0; }catch(e){} } Utils.tryPlay(m); }
+      else if(action === 'pause') m.pause();
+      else if(action === 'mute') m.muted = true;
+      else if(action === 'unmute'){ m.muted = false; Utils.tryPlay(m); }
+    }catch(e){}
+  }
+  return { register, unregister, getSnapshot, applyRemote };
+})();
+
+const YouTubeSync = (() => {
+  const players = new Map();
+  let apiPromise = null;
+  function loadApi(){
+    if(window.YT && window.YT.Player) return Promise.resolve();
+    if(apiPromise) return apiPromise;
+    apiPromise = new Promise((res) => {
+      const prev = window.onYouTubeIframeAPIReady;
+      window.onYouTubeIframeAPIReady = () => { if(typeof prev === 'function'){ try{ prev(); }catch(e){} } res(); };
+      const tag = document.createElement('script');
+      tag.src = 'https://www.youtube.com/iframe_api';
+      document.head.appendChild(tag);
+    });
+    return apiPromise;
+  }
+  function computeOrigin(){ return (location.origin && /^https?:/.test(location.origin)) ? location.origin : null; }
+  function embedUrl(videoId, start, loop){
+    let url = `https://www.youtube.com/embed/${videoId}?enablejsapi=1&autoplay=1&playsinline=1&rel=0&controls=0&modestbranding=1&iv_load_policy=3&fs=0&disablekb=1&mute=0`;
+    const origin = computeOrigin();
+    if(origin) url += `&origin=${encodeURIComponent(origin)}`;
+    if(start && start > 0) url += `&start=${start}`;
+    if(loop) url += `&loop=1&playlist=${videoId}`;
+    return url;
+  }
+  function attach(elId, iframe, videoId, start, loop){
+    const existing = players.get(elId);
+    if(existing && existing.player){ try{ existing.player.destroy(); }catch(e){} }
+    const el = State.elements.get(elId);
+    const initialVolume = el && typeof el.content.volume === 'number' && isFinite(el.content.volume) ? Utils.clamp(el.content.volume, 0, 1) : DEFAULT_VOLUME;
+    const entry = { player: null, iframe, videoId, ready: false, desiredPlaying: null, desiredVolume: initialVolume };
+    players.set(elId, entry);
+    loadApi().then(() => {
+      if(players.get(elId) !== entry || !document.body.contains(iframe)) return;
+      try{ iframe.setAttribute('referrerpolicy','strict-origin-when-cross-origin'); }catch(e){}
+      iframe.src = embedUrl(videoId, start, loop);
+      const player = new YT.Player(iframe, {
+        events: {
+          onReady: (e) => {
+            if(players.get(elId) !== entry) return;
+            entry.ready = true;
+            try{
+              if(entry.desiredVolume > 0) e.target.unMute(); else e.target.mute();
+              e.target.setVolume(Math.round(entry.desiredVolume * 100));
+              if(start && start > 0) e.target.seekTo(start, true);
+              if(entry.desiredPlaying === false) e.target.pauseVideo(); else e.target.playVideo();
+            }catch(err){}
+          },
+          onStateChange: (e) => {
+            if(players.get(elId) !== entry) return;
+            if(entry.desiredPlaying !== null && (e.data === YT.PlayerState.PLAYING || e.data === YT.PlayerState.PAUSED)){
+              const playing = e.data === YT.PlayerState.PLAYING;
+              if(playing === entry.desiredPlaying) entry.desiredPlaying = null;
+              else if(entry.desiredPlaying) e.target.playVideo(); else e.target.pauseVideo();
+            }
+          }
+        }
+      });
+      entry.player = player;
+    }).catch(() => {});
+  }
+  function cmd(id, fn, args){
+    const ent = players.get(id); if(!ent) return false;
+    try{ const p = ent.player; if(p && typeof p[fn] === 'function'){ p[fn].apply(p, args || []); return true; } }catch(e){}
+    return false;
+  }
+  function applyRemote(id, action, time, volume){
+    if(typeof volume === 'number' && isFinite(volume)){
+      const el = State.elements.get(id);
+      if(el) el.content.volume = Utils.clamp(volume, 0, 1);
+      const ent = players.get(id);
+      if(ent){ ent.desiredVolume = Utils.clamp(volume, 0, 1); cmd(id, 'setVolume', [Math.round(ent.desiredVolume * 100)]); cmd(id, ent.desiredVolume > 0 ? 'unMute' : 'mute'); }
+    }
+    if(action === 'play') cmd(id, 'playVideo');
+    else if(action === 'pause') cmd(id, 'pauseVideo');
+    else if(action === 'unmute') cmd(id, 'unMute');
+    else if(action === 'mute') cmd(id, 'mute');
+    if(typeof time === 'number' && isFinite(time)) cmd(id, 'seekTo', [time, true]);
+  }
+  function getTime(id){
+    const ent = players.get(id); if(!ent) return { time:0, dur:0, paused:true };
+    try{
+      const st = ent.player.getPlayerState();
+      return { time: ent.player.getCurrentTime() || 0, dur: ent.player.getDuration() || 0, paused: st !== YT.PlayerState.PLAYING };
+    }catch(e){ return { time:0, dur:0, paused:true }; }
+  }
+  function destroy(id){
+    const ent = players.get(id);
+    if(ent){ try{ ent.player.destroy(); }catch(e){} players.delete(id); }
+  }
+  return { attach, applyRemote, getTime, destroy };
+})();
+
+const MediaTick = (() => {
+  let timer = null;
+  function collect(){
+    const items = [];
+    State.elements.forEach(el => {
+      if(el.type === 'video' || el.type === 'audio'){
+        const snap = MediaCtl.getSnapshot(el.id);
+        if(snap) items.push(Object.assign({ kind: el.type }, snap));
+      } else if(el.type === 'youtube'){
+        const info = YouTubeSync.getTime(el.id);
+        items.push({ kind:'youtube', id: el.id, time: info.time, duration: info.dur, paused: info.paused });
+      }
+    });
+    return items;
+  }
+  function start(){
+    stop();
+    timer = setInterval(() => {
+      const items = collect();
+      if(items.length) Net.broadcastAll({ type: Net.MSG.MEDIA_TICK, items });
+    }, 5000);
+  }
+  function stop(){ if(timer){ clearInterval(timer); timer = null; } }
+  return { start, stop };
+})();
+
+const Elements = (() => {
+  const layer = document.getElementById('elements-layer');
+  const domNodes = new Map();
+
+  function buildNode(el){
+    const node = document.createElement('div');
+    node.className = 'el' + (el.ghost ? ' ghost' : '');
+    node.dataset.id = el.id;
+    node.dataset.type = el.type;
+    if(el.hidden) node.dataset.hidden = '1';
+    const frame = document.createElement('div');
+    frame.className = 'el-frame';
+    node.appendChild(frame);
+    if(el.type === 'image' || el.type === 'gif'){
+      const img = document.createElement('img');
+      img.className = 'el-media'; img.draggable = false;
+      frame.appendChild(img);
+    } else if(el.type === 'text'){
+      const txt = document.createElement('div');
+      txt.className = 'el-text';
+      frame.appendChild(txt);
+    } else if(el.type === 'youtube'){
+      const wrap = document.createElement('div');
+      wrap.className = 'el-yt';
+      const iframe = document.createElement('iframe');
+      iframe.allow = 'autoplay; encrypted-media; picture-in-picture';
+      iframe.setAttribute('allowfullscreen','');
+      iframe.setAttribute('frameborder','0');
+      iframe.setAttribute('referrerpolicy','strict-origin-when-cross-origin');
+      wrap.appendChild(iframe);
+      frame.appendChild(wrap);
+    } else if(el.type === 'video'){
+      const wrap = document.createElement('div');
+      wrap.className = 'el-video-native';
+      const v = document.createElement('video');
+      v.className = 'el-media'; v.playsInline = true; v.preload = 'metadata'; v.controls = false;
+      v.volume = (typeof el.content.volume === 'number' && isFinite(el.content.volume)) ? Utils.clamp(el.content.volume, 0, 1) : DEFAULT_VOLUME;
+      v.setAttribute('playsinline','');
+      wrap.appendChild(v);
+      frame.appendChild(wrap);
+      MediaCtl.register(el.id, v);
+    } else if(el.type === 'audio'){
+      const wrap = document.createElement('div');
+      wrap.className = 'el-audio-player';
+      const audio = document.createElement('audio');
+      audio.preload = 'metadata';
+      audio.volume = (typeof el.content.volume === 'number' && isFinite(el.content.volume)) ? Utils.clamp(el.content.volume, 0, 1) : DEFAULT_VOLUME;
+      audio.muted = !!el.content.muted;
+      wrap.appendChild(audio);
+      frame.appendChild(wrap);
+      MediaCtl.register(el.id, audio);
+    } else if(el.type === 'embed'){
+      const wrap = document.createElement('div');
+      wrap.className = 'el-embed';
+      const iframe = document.createElement('iframe');
+      iframe.setAttribute('referrerpolicy','no-referrer');
+      wrap.appendChild(iframe);
+      frame.appendChild(wrap);
+    }
+    return node;
+  }
+
+  function charToHtml(c){
+    if(c === ' ') return '&nbsp;';
+    if(c === '\n') return '<br>';
+    if(c === '\t') return '&nbsp;&nbsp;';
+    return Utils.escapeAttr(c);
+  }
+  function animateTextContent(txt, newText){
+    const old = txt.dataset.lastText || '';
+    if(old === newText) return;
+    txt.dataset.lastText = newText;
+    if(Math.abs(newText.length - old.length) > 40 || newText.length > 120){ txt.textContent = newText; return; }
+    const maxLen = Math.max(old.length, newText.length);
+    let html = '';
+    for(let i = 0; i < maxLen; i++){
+      const c = newText[i];
+      if(c == null) html += `<span class="ch out" style="animation-delay:${Math.min(i*12,180)}ms">${charToHtml(old[i]||'')}</span>`;
+      else if(old[i] !== c) html += `<span class="ch" style="animation-delay:${Math.min(i*14,220)}ms">${charToHtml(c)}</span>`;
+      else html += `<span class="ch" style="animation:none;opacity:1;transform:none">${charToHtml(c)}</span>`;
+    }
+    txt.innerHTML = html || '';
+  }
+
+  function fitTextBox(el){
+    if(el.type !== 'text') return;
+    const c = Utils.getCanvasRect();
+    const pxW = Math.max(24, el.w * c.w);
+    const text = el.content.text || ' ';
+    const baseF = el.content.fontSize || TEXT_BASE_FONT_SIZE;
+    const baseW = el.content.baseW || TEXT_BASE_W;
+    const scale = baseW ? (el.w / baseW) : 1;
+    const fontSize = Math.max(6, baseF * scale * (c.w / TEXT_DESIGN_W));
+    const weight = el.content.bold ? '700' : '500';
+    const family = el.content.fontFamily || "'Segoe UI', sans-serif";
+    const align = el.content.align || 'center';
+    const hPx = Utils.measureTextBox(text, pxW, fontSize, weight, family, align);
+    el.ar = Math.max(0.03, Math.min(8.0, hPx / pxW));
+    const node = domNodes.get(el.id);
+    if(node){
+      positionNode(node, el);
+      const txt = node.querySelector('.el-text');
+      if(txt) txt.style.fontSize = fontSize + 'px';
+    }
+  }
+
+  function updateNodeContent(node, el){
+    const frame = node.querySelector('.el-frame');
+    node.classList.toggle('ghost', !!el.ghost);
+    node.classList.toggle('stretched', !!el.stretch);
+    if(el.hidden) node.dataset.hidden = '1'; else delete node.dataset.hidden;
+    node.style.opacity = (el.type === 'audio') ? '0' : (el.opacity == null ? 1 : el.opacity);
+    if(el.type === 'image' || el.type === 'gif'){
+      const img = frame.querySelector('.el-media');
+      if(img && el.content.src && img.src !== el.content.src) img.src = el.content.src;
+    } else if(el.type === 'text'){
+      const txt = frame.querySelector('.el-text');
+      if(!txt) return;
+      animateTextContent(txt, el.content.text || '');
+      const baseF = el.content.fontSize || TEXT_BASE_FONT_SIZE;
+      const baseW = el.content.baseW || TEXT_BASE_W;
+      const scale = baseW ? (el.w / baseW) : 1;
+      const c = Utils.getCanvasRect();
+      txt.style.fontSize = Math.max(6, baseF * scale * (c.w / TEXT_DESIGN_W)) + 'px';
+      txt.style.color = el.content.color || '#ffffff';
+      txt.style.fontWeight = el.content.bold ? '700' : '500';
+      txt.style.fontFamily = el.content.fontFamily || "'Segoe UI', sans-serif";
+      const align = el.content.align || 'center';
+      txt.style.justifyContent = align === 'left' ? 'flex-start' : (align === 'right' ? 'flex-end' : 'center');
+      txt.style.textAlign = align;
+      txt.style.opacity = (el.content.text || '').trim() === '' ? '0' : '1';
+      if(el.content.outline){
+        const ow = Math.max(1, Math.min(12, el.content.outlineWidth || 2));
+        const oc = el.content.outlineColor || '#000000';
+        txt.style.webkitTextStroke = ow + 'px ' + oc;
+        txt.style.paintOrder = 'stroke fill';
+        const s = Math.max(1, Math.round(ow * 0.6));
+        txt.style.textShadow = [s+'px 0 0 '+oc,(-s)+'px 0 0 '+oc,'0 '+s+'px 0 '+oc,'0 '+(-s)+'px 0 '+oc,s+'px '+s+'px 0 '+oc,(-s)+'px '+(-s)+'px 0 '+oc,s+'px '+(-s)+'px 0 '+oc,(-s)+'px '+s+'px 0 '+oc].join(', ');
+      } else { txt.style.webkitTextStroke = ''; txt.style.paintOrder = ''; txt.style.textShadow = ''; }
+    } else if(el.type === 'youtube'){
+      const iframe = frame.querySelector('iframe');
+      const wantLoop = !!el.content.loop;
+      if(iframe && (!iframe.dataset.loaded || iframe.dataset.loop !== String(wantLoop)) && el.content.videoId){
+        iframe.dataset.loaded = '1';
+        iframe.dataset.loop = String(wantLoop);
+        YouTubeSync.attach(el.id, iframe, el.content.videoId, el.content.start || 0, wantLoop);
+      }
+    } else if(el.type === 'video'){
+      const v = frame.querySelector('video');
+      if(v && v.dataset.srcSet !== '1' && el.content.src){
+        v.src = el.content.src; v.dataset.srcSet = '1';
+        v.loop = !!el.content.loop;
+        v.muted = !!el.content.muted;
+        v.volume = (typeof el.content.volume === 'number' && isFinite(el.content.volume)) ? Utils.clamp(el.content.volume, 0, 1) : DEFAULT_VOLUME;
+        v.controls = false;
+        if(el.programKey || el.content.autoplay){ try{ v.muted = !!el.content.muted; }catch(e){} Utils.tryPlay(v); }
+      } else if(v && v.dataset.srcSet === '1'){
+        v.loop = !!el.content.loop; v.controls = false;
+        if((el.programKey || el.content.autoplay) && v.paused) Utils.tryPlay(v);
+      }
+    } else if(el.type === 'audio'){
+      const audio = frame.querySelector('audio');
+      if(audio && audio.dataset.srcSet !== '1' && el.content.src){
+        audio.src = el.content.src; audio.dataset.srcSet = '1';
+        audio.loop = !!el.content.loop;
+        audio.volume = (typeof el.content.volume === 'number' && isFinite(el.content.volume)) ? Utils.clamp(el.content.volume, 0, 1) : DEFAULT_VOLUME;
+        audio.muted = !!el.content.muted;
+        if(el.programKey || el.content.autoplay) Utils.tryPlay(audio);
+      } else if(audio && audio.dataset.srcSet === '1'){
+        audio.loop = !!el.content.loop;
+        if((el.programKey || el.content.autoplay) && audio.paused) Utils.tryPlay(audio);
+      }
+    } else if(el.type === 'embed'){
+      const iframe = frame.querySelector('iframe');
+      if(iframe && iframe.dataset.srcSet !== '1'){
+        iframe.dataset.srcSet = '1';
+        iframe.setAttribute('sandbox','allow-scripts allow-forms allow-popups allow-modals');
+        iframe.srcdoc = el.content.html || '';
+      }
+    }
+  }
+
+  function positionNode(node, el){
+    const c = Utils.getCanvasRect();
+    const pxW = Math.max(12, el.w * c.w);
+    const pxH = Math.max(10, pxW * (el.ar || 1));
+    const cx = c.x + el.x * c.w;
+    const cy = c.y + el.y * c.h;
+    node.style.width = pxW + 'px';
+    node.style.height = pxH + 'px';
+    node.style.transform = `translate(${cx - pxW/2}px, ${cy - pxH/2}px) rotate(${el.rot || 0}deg)`;
+  }
+
+  function renderElement(el, opts){
+    opts = opts || {};
+    let node = domNodes.get(el.id);
+    if(!node){ node = buildNode(el); domNodes.set(el.id, node); layer.appendChild(node); }
+    if(opts.instant){
+      node.classList.add('no-anim');
+      positionNode(node, el);
+      requestAnimationFrame(() => { try{ node.classList.remove('no-anim'); }catch(e){} });
+    } else positionNode(node, el);
+    updateNodeContent(node, el);
+  }
+
+  function localAdd(elObj){
+    if(State.elements.has(elObj.id)) return;
+    const fresh = Object.assign({}, elObj, { content: Object.assign({}, elObj.content) });
+    if(fresh.type === 'text'){
+      if(fresh.content.fontSize == null) fresh.content.fontSize = TEXT_BASE_FONT_SIZE;
+      if(fresh.content.baseW == null) fresh.content.baseW = TEXT_BASE_W;
+    }
+    State.elements.set(fresh.id, fresh);
+    renderElement(fresh, { instant: true });
+    if(fresh.type === 'text') fitTextBox(fresh);
+    return fresh;
+  }
+  function localUpdate(id, patch, v){
+    const el = State.elements.get(id); if(!el) return;
+    if(typeof v === 'number' && v < (el.v || 0)) return;
+    const p = Object.assign({}, patch);
+    if(p.content){ el.content = Object.assign({}, el.content, p.content); delete p.content; }
+    Object.assign(el, p);
+    if(typeof v === 'number') el.v = v;
+    if(el.type === 'text') fitTextBox(el);
+    renderElement(el);
+  }
+  function localRemove(id){
+    const el = State.elements.get(id);
+    if(!el) return;
+    State.elements.delete(id);
+    YouTubeSync.destroy(id);
+    MediaCtl.unregister(id);
+    const node = domNodes.get(id);
+    if(node){ node.classList.add('no-anim'); node.remove(); domNodes.delete(id); }
+  }
+  function clearAllLocal(){
+    State.elements.forEach((el, id) => { YouTubeSync.destroy(id); MediaCtl.unregister(id); });
+    State.elements.clear();
+    domNodes.forEach(n => n.remove());
+    domNodes.clear();
+  }
+  function repositionAll(){
+    State.elements.forEach(el => {
+      const node = domNodes.get(el.id);
+      if(node){ positionNode(node, el); updateNodeContent(node, el); }
+    });
+  }
+  function applyAnimRemote(id, anim){
+    const el = State.elements.get(id); if(!el) return;
+    el.anim = anim ? Object.assign({}, anim) : null;
+    if(el.anim) el.anim._t0 = performance.now();
+    ensureAnimLoop();
+  }
+  function ensureAnimLoop(){
+    if(State._animRAF) return;
+    const tick = (now) => {
+      let any = false;
+      const c = Utils.getCanvasRect();
+      State.elements.forEach(el => {
+        if(!el.anim) return;
+        any = true;
+        const a = el.anim;
+        const t0 = a._t0 || now;
+        const dt = (now - t0) / 1000;
+        const node = domNodes.get(el.id);
+        if(a.type === 'spin'){
+          const speed = (a.speed || 45) * (a.dir || 1);
+          el.rot = (a.baseRot || 0) + speed * dt;
+          if(node) positionNode(node, el);
+        } else if(a.type === 'move'){
+          const dur = Math.max(0.12, a.duration || 2);
+          let p = dt / dur;
+          const mode = a.mode || 'pingpong';
+          if(mode === 'loop') p = p % 1;
+          else if(mode === 'pingpong'){ const cycle = Math.floor(p); p = p - cycle; if(cycle % 2 === 1) p = 1 - p; }
+          else p = Math.min(1, p);
+          const k = (a.ease === 'linear') ? p : (p < 0.5 ? 2*p*p : 1 - Math.pow(-2*p+2,2)/2);
+          const x0 = a.fromX != null ? a.fromX : el.x;
+          const y0 = a.fromY != null ? a.fromY : el.y;
+          const x1 = a.toX != null ? a.toX : el.x;
+          const y1 = a.toY != null ? a.toY : el.y;
+          el.x = x0 + (x1 - x0) * k;
+          el.y = y0 + (y1 - y0) * k;
+          if(node) positionNode(node, el);
+        } else if(a.type === 'pulse'){
+          const speed = a.speed || 1.2;
+          const amp = (a.scale || 15) / 100;
+          const s = 1 + Math.sin(dt * speed * Math.PI * 2) * amp;
+          if(node){ positionNode(node, el); node.style.transform += ' scale(' + s + ')'; }
+        } else if(a.type === 'orbit'){
+          const speed = (a.speed || 60) * (a.dir || 1);
+          const rad = a.radius || 0.12;
+          const cx = a.cx != null ? a.cx : el.x;
+          const cy = a.cy != null ? a.cy : el.y;
+          const ang = (a.baseAng || 0) + speed * dt * Math.PI / 180;
+          el.x = cx + Math.cos(ang) * rad;
+          el.y = cy + Math.sin(ang) * rad * (c.w / Math.max(1, c.h));
+          if(node) positionNode(node, el);
+        }
+      });
+      if(any) State._animRAF = requestAnimationFrame(tick);
+      else State._animRAF = null;
+    };
+    State._animRAF = requestAnimationFrame(tick);
+  }
+  return { localAdd, localUpdate, localRemove, clearAllLocal, renderElement, repositionAll, applyAnimRemote, fitTextBox, domNodes };
+})();
+
+const Drawing = (() => {
+  const canvas = document.getElementById('draw-canvas');
+  const ctx = canvas.getContext('2d');
+  let strokes = [];
+  function resizeCanvas(){
+    const s = document.getElementById('stage');
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = Math.max(1, s.clientWidth * dpr);
+    canvas.height = Math.max(1, s.clientHeight * dpr);
+    canvas.style.width = s.clientWidth + 'px';
+    canvas.style.height = s.clientHeight + 'px';
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    redrawAll();
+  }
+  function redrawAll(){
+    const { w, h } = Utils.getStageSize();
+    ctx.clearRect(0, 0, w, h);
+    const c = Utils.getCanvasRect();
+    strokes.forEach(s => drawStroke(s, c));
+  }
+  function drawStroke(s, c){
+    if(!s.points || s.points.length < 1) return;
+    ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+    ctx.strokeStyle = s.color; ctx.lineWidth = s.size;
+    const X = p => c.x + p.x * c.w;
+    const Y = p => c.y + p.y * c.h;
+    if(s.points.length === 1){
+      const p = s.points[0];
+      ctx.beginPath(); ctx.arc(X(p), Y(p), s.size/2, 0, Math.PI*2);
+      ctx.fillStyle = s.color; ctx.fill(); return;
+    }
+    ctx.beginPath();
+    s.points.forEach((p, i) => {
+      const px = X(p), py = Y(p);
+      if(i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    });
+    ctx.stroke();
+  }
+  function receiveStrokePoint(msg){
+    let s = strokes.find(x => x.id === msg.strokeId);
+    if(!s){ s = { id: msg.strokeId, points: [], color: msg.color, size: msg.size, userId: msg.userId }; strokes.push(s); }
+    s.points.push({ x: msg.x, y: msg.y });
+    redrawAll();
+  }
+  let _eraseLast = null;
+  function eraseAt(x, y, radius, continuous){
+    const c = Utils.getCanvasRect();
+    const r = Math.max(6, radius);
+    const stamps = [];
+    if(continuous && _eraseLast){
+      const dx = x - _eraseLast.x, dy = y - _eraseLast.y;
+      const dist = Math.sqrt(dx*dx + dy*dy);
+      const stepN = Math.max(0.002, (r * 0.35) / Math.max(c.w, c.h));
+      const steps = Math.min(24, Math.max(1, Math.ceil(dist / stepN)));
+      for(let i = 1; i <= steps; i++){ const t = i / steps; stamps.push({ x: _eraseLast.x + dx*t, y: _eraseLast.y + dy*t }); }
+    } else stamps.push({ x, y });
+    _eraseLast = { x, y };
+    let changed = false;
+    const next = [];
+    strokes.forEach(s => {
+      const pad = (s.size || 4) * 0.55;
+      const pr = r + pad; const pr2 = pr * pr;
+      let seg = []; let hitAny = false;
+      const flush = () => { if(seg.length >= 1) next.push({ id: Utils.uid('stroke'), points: seg, color: s.color, size: s.size, userId: s.userId }); seg = []; };
+      s.points.forEach(p => {
+        let hit = false;
+        for(let i = 0; i < stamps.length; i++){
+          const st = stamps[i];
+          const dx = (c.x + p.x * c.w) - (c.x + st.x * c.w);
+          const dy = (c.y + p.y * c.h) - (c.y + st.y * c.h);
+          if((dx*dx + dy*dy) < pr2){ hit = true; break; }
+        }
+        if(hit){ hitAny = true; flush(); } else seg.push(p);
+      });
+      if(hitAny){ changed = true; flush(); } else next.push(s);
+    });
+    if(changed){ strokes = next; redrawAll(); }
+    return changed;
+  }
+  function eraseEnd(){ _eraseLast = null; }
+  function clearAll(){ strokes = []; redrawAll(); }
+  function getSnapshot(){ return strokes.map(s => ({ id: s.id, points: s.points.map(p => ({x:p.x,y:p.y})), color: s.color, size: s.size, userId: s.userId })); }
+  function loadSnapshot(snap){ strokes = (snap||[]).map(s => ({ id: s.id, points: (s.points||[]).map(p => ({x:p.x,y:p.y})), color: s.color, size: s.size, userId: s.userId })); redrawAll(); }
+  window.addEventListener('resize', Utils.throttle(resizeCanvas, 120));
+  return { resizeCanvas, receiveStrokePoint, eraseAt, eraseEnd, clearAll, getSnapshot, loadSnapshot, redrawAll };
+})();
+
+function buildFullStateSnapshot(){
+  return {
+    type: Net.MSG.STATE_SYNC,
+    elements: Array.from(State.elements.values()).filter(el => !el.ghost).map(el => ({
+      id: el.id, type: el.type, x: el.x, y: el.y, w: el.w, ar: el.ar,
+      rot: el.rot, opacity: el.opacity, hidden: !!el.hidden,
+      stretch: !!el.stretch, programKey: el.programKey || null,
+      content: el.content, v: el.v,
+      userId: el.userId, userName: el.userName, userColor: el.userColor,
+      createdAt: el.createdAt
+    })),
+    strokes: Drawing.getSnapshot(),
+    version: State.version,
+    hostAR: State.hostAR
+  };
+}
+
+function handleMessageAsHost(msg, from, conn){
+  if(!msg || typeof msg !== 'object') return;
+  switch(msg.type){
+    case Net.MSG.HELLO:
+      if(conn){
+        conn._userName = msg.name;
+        conn.send(buildFullStateSnapshot());
+        const s = Utils.getStageSize();
+        conn.send({ type: Net.MSG.HOST_VIEWPORT, ar: s.w / s.h });
+      }
+      break;
+    case Net.MSG.EL_CREATE: {
+      const el = msg.element; if(!el || !el.id) break;
+      el.v = ++State.version;
+      el.userName = el.userName || 'convidado';
+      Elements.localAdd(el);
+      Net.broadcastAll({ type: Net.MSG.EL_CREATE, element: el });
+      break;
+    }
+    case Net.MSG.EL_UPDATE: {
+      if(!State.elements.has(msg.id)) break;
+      const v = ++State.version;
+      Elements.localUpdate(msg.id, msg.patch, v);
+      Net.broadcastAll({ type: Net.MSG.EL_UPDATE, id: msg.id, patch: msg.patch, v });
+      break;
+    }
+    case Net.MSG.EL_MOVE: {
+      const el = State.elements.get(msg.id); if(!el) break;
+      const v = ++State.version;
+      el.x = msg.x; el.y = msg.y; el.v = v;
+      Elements.renderElement(el);
+      Net.broadcastAll({ type: Net.MSG.EL_MOVE, id: msg.id, x: msg.x, y: msg.y, v });
+      break;
+    }
+    case Net.MSG.EL_REMOVE:
+      if(!State.elements.has(msg.id)) break;
+      Elements.localRemove(msg.id);
+      Net.broadcastAll({ type: Net.MSG.EL_REMOVE, id: msg.id });
+      break;
+    case Net.MSG.CLEAR_ALL:
+      Elements.clearAllLocal(); Drawing.clearAll();
+      Net.broadcastAll({ type: Net.MSG.CLEAR_ALL });
+      break;
+    case Net.MSG.STROKE_POINT:
+      Drawing.receiveStrokePoint(msg);
+      Net.broadcast(Object.assign({}, msg, { userId: from }), from);
+      break;
+    case Net.MSG.STROKE_END:
+      Net.broadcast(msg, from);
+      break;
+    case Net.MSG.ERASE_POINT:
+      Drawing.eraseAt(msg.x, msg.y, msg.radius);
+      Net.broadcast(msg, from);
+      break;
+    case Net.MSG.STROKES_SYNC:
+      Drawing.loadSnapshot(msg.strokes);
+      Net.broadcast(msg, from);
+      break;
+    case Net.MSG.CURSOR_MOVE:
+    case Net.MSG.CURSOR_HIDE:
+    case Net.MSG.CURSOR_CLICK:
+      Net.broadcast(Object.assign({}, msg, { userId: from }), from);
+      break;
+    case Net.MSG.YT_SYNC:
+      YouTubeSync.applyRemote(msg.id, msg.action, msg.time, msg.volume);
+      Net.broadcast(msg, from);
+      break;
+    case Net.MSG.MEDIA_SYNC:
+      MediaCtl.applyRemote(msg.id, msg.action, msg.time, msg.volume, msg.muted);
+      Net.broadcast(msg, from);
+      break;
+    case Net.MSG.CHAT:
+      Net.broadcast(msg, from);
+      break;
+    case Net.MSG.GROUP_CREATE:
+      if(msg.group) State.groups.set(msg.group.id, msg.group);
+      Net.broadcast(msg, from);
+      break;
+    case Net.MSG.GROUP_BREAK:
+      if(msg.groupId) State.groups.delete(msg.groupId);
+      Net.broadcast(msg, from);
+      break;
+    case Net.MSG.ANIM_SET:
+      Elements.applyAnimRemote(msg.id, msg.anim);
+      Net.broadcast(msg, from);
+      break;
+  }
+}
+
+function updateHostStatus(){
+  const s = document.getElementById('host-status');
+  const txt = document.getElementById('host-status-text');
+  const code = document.getElementById('host-room-code');
+  if(!s) return;
+  const n = State.clientConns.size;
+  s.className = n > 0 ? 'ok' : '';
+  txt.textContent = n > 0 ? (n + ' convidado' + (n === 1 ? '' : 's')) : 'Aguardando...';
+  code.textContent = State.roomCode || '';
+  const tip = document.getElementById('host-tip');
+  if(tip) tip.classList.toggle('show', n === 0);
+}
+
+(async function boot(){
+  if(!ROOM_CODE){
+    document.getElementById('host-status-text').textContent = 'Sala inválida';
+    document.getElementById('host-status').className = 'err';
+    return;
+  }
+  if(typeof Peer === 'undefined'){
+    document.getElementById('host-status-text').textContent = 'PeerJS indisponível';
+    document.getElementById('host-status').className = 'err';
+    return;
+  }
+  document.getElementById('host-room-code').textContent = ROOM_CODE;
+  Drawing.resizeCanvas();
+  const s = Utils.getStageSize();
+  State.hostAR = s.w / s.h;
+  try{
+    await Net.createHostPeer(ROOM_CODE);
+    document.getElementById('host-status').className = 'ok';
+    document.getElementById('host-status-text').textContent = 'Sala ativa';
+    updateHostStatus();
+    MediaTick.start();
+  }catch(e){
+    document.getElementById('host-status').className = 'err';
+    document.getElementById('host-status-text').textContent = (e.message === 'room-taken') ? 'Sala já em uso' : 'Falha ao criar sala';
+  }
+})();
+
+window.addEventListener('resize', Utils.throttle(() => {
+  const s = Utils.getStageSize();
+  State.hostAR = s.w / s.h;
+  Net.broadcastAll({ type: Net.MSG.HOST_VIEWPORT, ar: State.hostAR });
+  Elements.repositionAll();
+  Drawing.resizeCanvas();
+}, 100));
+
+document.getElementById('host-status').addEventListener('click', () => {
+  document.getElementById('host-status').classList.toggle('hide');
+});
+
+document.addEventListener('contextmenu', (e) => e.preventDefault());
+document.addEventListener('gesturestart', (e) => e.preventDefault());
+</script>
+</body>
+</html>
