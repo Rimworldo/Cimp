@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>StreamCanvas — Entrar</title>
+<style>
+:root{
+  --bg:#0e1013; --panel:#15181c; --panel-2:#1c2024; --panel-3:#22262b;
+  --line:rgba(255,255,255,0.06); --line-2:rgba(255,255,255,0.11);
+  --text:#d8dbdf; --text-dim:#838992; --text-mute:#5a5f66;
+  --accent:#5285c2; --accent-hover:#6293cf;
+  --accent-soft:rgba(82,133,194,0.14); --accent-soft-2:rgba(82,133,194,0.24);
+  --err:#c05454; --ok:#4a9d74;
+  --radius:8px; --radius-sm:5px;
+  font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+*{box-sizing:border-box;}
+html,body{
+  margin:0;padding:0;width:100%;height:100%;
+  background:var(--bg);color:var(--text);
+  -webkit-font-smoothing:antialiased;
+  display:flex;align-items:center;justify-content:center;
+}
+.gate-card{
+  width:390px;max-width:92vw;
+  background:var(--panel);
+  border:1px solid var(--line);border-radius:var(--radius);
+  padding:24px 22px 20px;
+  box-shadow:0 18px 44px -22px rgba(0,0,0,0.7);
+}
+.gate-brand{display:flex;align-items:center;gap:8px;margin-bottom:18px;}
+.gate-dot{width:6px;height:6px;border-radius:50%;background:var(--accent);opacity:0.9;}
+.gate-brand span{font-size:12px;font-weight:600;letter-spacing:1.6px;color:var(--text-dim);}
+.field-label{font-size:11px;color:var(--text-dim);margin:8px 0 4px;display:block;}
+.field-label:first-of-type{margin-top:0;}
+.gate-room-label{font-size:11.5px;color:var(--text-dim);margin-bottom:5px;}
+.gate-room-id{font-size:30px;font-weight:700;letter-spacing:3px;color:var(--text);margin-bottom:10px;display:flex;align-items:baseline;gap:10px;}
+.gate-room-id small{font-size:10.5px;font-weight:500;color:var(--accent);background:var(--accent-soft);padding:3px 8px;border-radius:10px;letter-spacing:.3px;cursor:pointer;}
+.gate-room-id small:hover{background:var(--accent-soft-2);}
+.gate-discord-toggle{
+  display:flex;align-items:center;gap:8px;
+  font-size:11.5px;color:var(--text-dim);
+  cursor:pointer;user-select:none;
+  padding:7px 9px;margin-bottom:14px;
+  border:1px solid var(--line);border-radius:6px;
+  background:rgba(255,255,255,0.015);
+  transition:border-color .12s ease, color .12s ease;
+}
+.gate-discord-toggle:hover{border-color:var(--line-2);color:var(--text);}
+.gate-discord-toggle input[type="checkbox"]{
+  width:14px;height:14px;margin:0;cursor:pointer;
+  accent-color:var(--accent);flex:none;
+}
+.gate-discord-toggle .gdt-tag{
+  margin-left:auto;font-size:9.5px;font-weight:700;letter-spacing:.5px;
+  padding:2px 6px;border-radius:4px;
+  background:rgba(88,101,242,0.15);color:#8891f0;
+  border:1px solid rgba(88,101,242,0.3);
+}
+.gate-discord-toggle input:checked ~ .gdt-tag{
+  background:rgba(88,101,242,0.28);color:#a9b0f5;border-color:rgba(88,101,242,0.55);
+}
+.gate-btn{width:100%;padding:10px 14px;border-radius:var(--radius-sm);border:1px solid var(--line-2);background:var(--panel-2);color:var(--text);font-size:13px;font-weight:600;cursor:pointer;margin-top:8px;font-family:inherit;}
+.gate-btn:hover{background:var(--panel-3);}
+.gate-btn.primary{background:var(--accent);border-color:var(--accent);color:#fff;}
+.gate-btn.primary:hover{background:var(--accent-hover);border-color:var(--accent-hover);}
+.gate-divider{display:flex;align-items:center;gap:10px;margin:14px 0 10px;color:var(--text-mute);font-size:11px;}
+.gate-divider::before,.gate-divider::after{content:'';flex:1;height:1px;background:var(--line);}
+.gate-join-row{display:flex;gap:8px;}
+.gate-input{flex:1;padding:10px 12px;border-radius:var(--radius-sm);border:1px solid var(--line-2);background:#0b0d10;color:var(--text);font-size:14px;letter-spacing:2px;text-align:center;outline:none;font-family:inherit;width:100%;}
+.gate-input:focus{border-color:var(--accent);}
+.gate-input::placeholder{letter-spacing:.5px;color:var(--text-mute);}
+.gate-status{margin-top:12px;font-size:12px;color:var(--text-dim);min-height:16px;display:flex;align-items:center;gap:7px;}
+.gate-status.err{color:var(--err);}
+.fy-hint{font-size:10.5px;color:var(--text-mute);margin-top:6px;line-height:1.4;}
+.hidden{display:none !important;}
+.swatches{display:flex;flex-wrap:wrap;gap:5px;align-items:center;}
+.swatch{width:20px;height:20px;border-radius:50%;cursor:pointer;border:2px solid rgba(255,255,255,0.10);}
+.swatch.active{border-color:#fff;}
+.free-color{width:28px;height:28px;border-radius:6px;border:1px solid var(--line-2);background:none;cursor:pointer;padding:0;flex:none;}
+
+/* name modal */
+#name-modal{position:fixed;inset:0;z-index:9500;display:flex;align-items:center;justify-content:center;background:rgba(5,7,10,0.78);}
+.name-card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:22px;width:360px;max-width:92vw;box-shadow:0 26px 70px -20px rgba(0,0,0,0.8);}
+.name-card h3{margin:0 0 5px;font-size:15px;font-weight:700;}
+.name-card p{margin:0 0 14px;font-size:12px;color:var(--text-dim);}
+</style>
+</head>
+<body>
+
+<div class="gate-card" id="gate-main">
+  <div class="gate-brand"><span class="gate-dot"></span><span>STREAMCANVAS</span></div>
+  <label class="field-label">Seu nome (host)</label>
+  <input class="gate-input" id="host-name-input" maxlength="24" placeholder="Host" value="Host"
+         style="text-align:left;letter-spacing:0;font-size:13.5px;margin-bottom:6px;">
+  <div class="gate-room-label">Sala</div>
+  <div class="gate-room-id"><span id="my-room-code">------</span><small id="copy-room-btn">copiar</small></div>
+
+  <label class="gate-discord-toggle" title="Envia o código da sala ao Discord quando você iniciar como Host">
+    <input type="checkbox" id="discord-post-toggle">
+    <span>Postar código ao iniciar host</span>
+    <span class="gdt-tag">DISCORD</span>
+  </label>
+
+  <button class="gate-btn primary" id="btn-create-room">Criar sala (Host)</button>
+  <div class="gate-divider">ou</div>
+  <button class="gate-btn" id="btn-show-join">Entrar em uma sala</button>
+  <div class="hidden" id="join-block" style="margin-top:10px;">
+    <div class="gate-join-row">
+      <input class="gate-input" id="join-code-input" maxlength="6" placeholder="CÓDIGO" autocomplete="off">
+      <button class="gate-btn primary" style="width:auto;white-space:nowrap;margin-top:0;" id="btn-connect">Entrar</button>
+    </div>
+  </div>
+  <div class="gate-status" id="gate-status"></div>
+  <div class="fy-hint" style="margin-top:12px;">Host: abre em nova aba (transparente p/ OBS).</div>
+</div>
+
+<!-- NAME MODAL (para entrar como convidado) -->
+<div id="name-modal" class="hidden">
+  <div class="name-card">
+    <h3>Escolha seu nome</h3>
+    <p>Aparece junto ao seu cursor. Obrigatório.</p>
+    <input class="gate-input" id="guest-name-input" maxlength="20" placeholder="Digite seu nome" autocomplete="off"
+           style="text-align:left;letter-spacing:0;margin-bottom:0;">
+    <label class="field-label" style="margin-top:12px;">Cor do cursor</label>
+    <div class="swatches" id="guest-color-swatches"></div>
+    <div class="gate-join-row" style="margin-top:16px;">
+      <button class="gate-btn" id="guest-name-cancel" style="margin-top:0;">Cancelar</button>
+      <button class="gate-btn primary" id="guest-name-confirm" style="margin-top:0;">Entrar</button>
+    </div>
+    <div id="guest-name-error" class="gate-status err" style="display:none;">Digite um nome para entrar.</div>
+  </div>
+</div>
+
+<script>
+/* ============ Discord Notifier (compartilhado) ============ */
+const DiscordNotifier = (() => {
+  const WEBHOOK_URL = 'https://discord.com/api/webhooks/1560313830922518589/dZymhhg1XVCXbz4-A1al5njGqmOp6Voejos0ulJyG2Hee_IGRP0SXkMvnnpwOeTtrgbl';
+  const STORAGE_KEY = 'streamcanvas_discord_post_enabled';
+  function isEnabled(){ try{ return localStorage.getItem(STORAGE_KEY) === '1'; }catch(e){ return false; } }
+  function setEnabled(v){ try{ localStorage.setItem(STORAGE_KEY, v ? '1' : '0'); }catch(e){} }
+  async function postRoomCode(code){
+    if(!code) return false;
+    try{
+      const res = await fetch(WEBHOOK_URL, {
+        method:'POST',
+        headers:{ 'Content-Type':'application/json' },
+        body: JSON.stringify({
+          content: `O código de hoje é **${code}**`,
+          username:'StreamCanvas',
+          allowed_mentions:{ parse: [] }
+        })
+      });
+      return res.ok;
+    }catch(e){ return false; }
+  }
+  return { isEnabled, setEnabled, postRoomCode };
+})();
+
+/* ============ Helpers ============ */
+function randomRoomCode(){ return String(Math.floor(100000 + Math.random() * 900000)); }
+function colorForUser(id){
+  let h = 0; for(let i = 0; i < id.length; i++) h = id.charCodeAt(i) + ((h << 5) - h);
+  return `hsl(${Math.abs(h) % 360}, 52%, 62%)`;
+}
+function uid(p){ return (p||'id') + '_' + Math.random().toString(36).slice(2,9) + Date.now().toString(36).slice(-4); }
+function escapeAttr(s){ return String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+/* ============ Setup ============ */
+const myUserId = uid('user');
+const generatedRoomCode = randomRoomCode();
+const statusEl = document.getElementById('gate-status');
+
+document.getElementById('my-room-code').textContent = generatedRoomCode;
+
+// Discord toggle
+const dcb = document.getElementById('discord-post-toggle');
+dcb.checked = DiscordNotifier.isEnabled();
+dcb.addEventListener('change', () => DiscordNotifier.setEnabled(dcb.checked));
+
+// Copiar código
+document.getElementById('copy-room-btn').addEventListener('click', () => {
+  try{ navigator.clipboard.writeText(generatedRoomCode); }catch(e){}
+  statusEl.className = 'gate-status';
+  statusEl.textContent = 'Código copiado.';
+});
+
+/* ============ Criar sala = Host ============ */
+document.getElementById('btn-create-room').addEventListener('click', async () => {
+  const n = (document.getElementById('host-name-input').value || '').trim().slice(0,24);
+  if(!n){
+    statusEl.className = 'gate-status err';
+    statusEl.textContent = 'Digite um nome.';
+    return;
+  }
+  if(DiscordNotifier.isEnabled()){
+    await DiscordNotifier.postRoomCode(generatedRoomCode);
+  }
+  const params = new URLSearchParams({
+    room: generatedRoomCode,
+    name: n,
+    color: colorForUser(myUserId),
+    uid: myUserId
+  });
+  window.open('host.html?' + params.toString(), '_blank');
+  statusEl.className = 'gate-status';
+  statusEl.textContent = 'Host aberto em nova aba. Compartilhe o código ' + generatedRoomCode + '.';
+});
+
+/* ============ Entrar como convidado ============ */
+document.getElementById('btn-show-join').addEventListener('click', () => {
+  document.getElementById('join-block').classList.remove('hidden');
+  document.getElementById('join-code-input').focus();
+});
+
+const GUEST_PALETTE = ['#5285c2','#6a6ac4','#4a9d74','#b8873f','#c05454','#c2a940','#4b8fa8','#b56894'];
+let guestPickedColor = GUEST_PALETTE[0];
+const guestSwatches = document.getElementById('guest-color-swatches');
+const freeGuest = document.createElement('input');
+freeGuest.type = 'color'; freeGuest.className = 'free-color'; freeGuest.value = guestPickedColor;
+freeGuest.addEventListener('input', () => {
+  guestPickedColor = freeGuest.value;
+  guestSwatches.querySelectorAll('.swatch').forEach(s => s.classList.remove('active'));
+});
+guestSwatches.appendChild(freeGuest);
+GUEST_PALETTE.forEach((c, i) => {
+  const sw = document.createElement('div');
+  sw.className = 'swatch' + (i === 0 ? ' active' : '');
+  sw.style.background = c;
+  sw.addEventListener('click', () => {
+    guestPickedColor = c;
+    freeGuest.value = c;
+    guestSwatches.querySelectorAll('.swatch').forEach(s => s.classList.remove('active'));
+    sw.classList.add('active');
+  });
+  guestSwatches.appendChild(sw);
+});
+
+function openJoinModal(code){
+  const modal = document.getElementById('name-modal');
+  const input = document.getElementById('guest-name-input');
+  const err = document.getElementById('guest-name-error');
+  modal.classList.remove('hidden');
+  input.value = '';
+  err.style.display = 'none';
+  setTimeout(() => input.focus(), 60);
+
+  const confirm = document.getElementById('guest-name-confirm');
+  const cancel = document.getElementById('guest-name-cancel');
+
+  function cleanup(){
+    confirm.onclick = null;
+    cancel.onclick = null;
+    input.onkeydown = null;
+    input.oninput = null;
+  }
+  input.oninput = () => { err.style.display = 'none'; input.style.borderColor = ''; };
+  input.onkeydown = (e) => { if(e.key === 'Enter') confirm.click(); };
+  cancel.onclick = () => { cleanup(); modal.classList.add('hidden'); };
+  confirm.onclick = () => {
+    const n = (input.value || '').trim().slice(0,20);
+    if(!n){
+      input.style.borderColor = 'var(--err)';
+      err.style.display = 'flex';
+      return;
+    }
+    cleanup();
+    modal.classList.add('hidden');
+    const params = new URLSearchParams({
+      room: code,
+      name: n,
+      color: guestPickedColor,
+      uid: myUserId
+    });
+    window.location.href = 'guest.html?' + params.toString();
+  };
+}
+
+function doJoin(){
+  const code = (document.getElementById('join-code-input').value || '').trim();
+  if(!/^\d{4,8}$/.test(code)){
+    statusEl.className = 'gate-status err';
+    statusEl.textContent = 'Código inválido.';
+    return;
+  }
+  openJoinModal(code);
+}
+
+document.getElementById('btn-connect').addEventListener('click', doJoin);
+document.getElementById('join-code-input').addEventListener('keydown', (e) => { if(e.key === 'Enter') doJoin(); });
+
+// auto-abrir modal se veio com ?join=
+const urlParams = new URLSearchParams(location.search);
+if(urlParams.get('join')){
+  document.getElementById('join-block').classList.remove('hidden');
+  document.getElementById('join-code-input').value = urlParams.get('join');
+}
+
+document.addEventListener('contextmenu', (e) => e.preventDefault());
+</script>
+</body>
+</html>
