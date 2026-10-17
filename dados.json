@@ -1,0 +1,37 @@
+{
+  "points": {
+    "daniloamorimking": 18,
+    "daenil": 1
+  },
+  "banned": [],
+  "playlist": [
+    {
+      "videoId": "https://user.uploads.dev/file/07681dcd79ca8b2d7f1134b731dd018d.mp3",
+      "title": "07681dcd79ca8b2d7f1134b731dd018d.mp3",
+      "user": "daenil",
+      "color": "#00FF7F",
+      "thumb": "https://i.giphy.com/blSTtZehjAZ8I.webp"
+    },
+    {
+      "videoId": "yT_AfrHbAyA",
+      "title": "Tyla - THAT GIRL (Official Music Video)",
+      "user": "daenil",
+      "color": "#00FF7F",
+      "thumb": "https://img.youtube.com/vi/yT_AfrHbAyA/hqdefault.jpg"
+    }
+  ],
+  "colors": {
+    "daniloamorimking": "#00FF7F",
+    "jonhcreator2": "#00FF7F"
+  },
+  "config": {
+    "gifWords": 1,
+    "glow": true,
+    "bpm": true,
+    "vol": 12,
+    "emptySound": true,
+    "autoSkip": true,
+    "maxDuration": 10,
+    "maxPerViewer": 5
+  }
+}
