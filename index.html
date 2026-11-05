@@ -34,12 +34,16 @@
  NO OBS: Fontes > Navegador > URL (ou arquivo local) com a query acima,
  largura/altura iguais ao canvas da cena. O fundo é transparente.
 
+ EMOTES
+   Emotes do 7TV (globais + do canal) e emotes nativos da Twitch aparecem
+   nos pop-ups automaticamente (a API do 7TV não precisa de chave).
+
  OUTROS PARÂMETROS (opcionais)
    &volume=0.12      volume dos sons de colisão (0 a 1)
    &popupMs=5000     tempo que o pop-up fica na tela
    &ttlMin=30        minutos sem falar até a bola sumir (0 = nunca)
    &max=120          máximo de bolas na tela
-   &roll=1           bolas rolam de verdade (a foto gira); padrão: só inclina
+   &roll=0           desliga a rolagem (a bola só desliza e inclina); padrão: rola
    &ignore=a,b,c     usuários ignorados (bots)
 =====================================================================
 -->
@@ -95,6 +99,13 @@
   }
   .bubble.out { opacity: 0; transform: translateY(-6px); }
 
+  .emote {
+    height: calc(var(--u) * 28px);
+    width: auto;
+    vertical-align: middle;
+    margin: 0 calc(var(--u) * 3px);
+  }
+
   @keyframes pop {
     from { opacity: 0; transform: scale(.6); }
     to   { opacity: 1; transform: scale(1); }
@@ -137,7 +148,7 @@ const CONFIG = {
   popupMs:         +P('popupMs', 5000),
   ttlMin:          +P('ttlMin', 30),
   maxBalls:        +P('max', 120),
-  roll:            P('roll', '0') === '1',
+  roll:            P('roll', '1') !== '0',
   ignore:          P('ignore', 'nightbot,streamelements,streamlabs,moobot,fossabot,wizebot')
                      .toLowerCase().split(',').map(s => s.trim()).filter(Boolean)
 };
@@ -306,6 +317,7 @@ function prepTexture(t) {
   t.encoding = THREE.sRGBEncoding;
   t.anisotropy = 4;
   t.repeat.set(2, 1);
+  t.wrapS = THREE.MirroredRepeatWrapping;       // atrás da bola a foto aparece espelhada
   t.needsUpdate = true;
   return t;
 }
@@ -351,7 +363,7 @@ function ensureBall(user) {
     vx: 0, vy: 0,
     dx: 0, dy: 0, pushT: 0, queue: [],
     age: 0, lastActive: performance.now(),
-    label: null, labelW: 0, labelH: 0, lastLX: NaN, lastLY: NaN
+    label: null, labelW: 0, labelH: 0, lastLX: 0, lastLY: 0, labelDirty: true
   };
   balls.push(b);
   ballsById.set(b.id, b);
@@ -392,28 +404,122 @@ setInterval(() => {
   for (let i = balls.length - 1; i >= 0; i--) if (balls[i].lastActive < limit) removeBall(balls[i]);
 }, 10000);
 
+/* ---- Emotes 7TV (globais + do canal) ---- */
+const emotes = new Map();          // nome do emote -> URL da imagem
+let emoteNames = [];               // lista de nomes (usada no modo demo)
+
+function addSevenTvSet(set) {
+  const list = (set && set.emotes) || [];
+  for (const e of list) {
+    const host = e && e.data && e.data.host;
+    if (!host || !host.url || !e.name) continue;
+    const base = host.url.startsWith('//') ? 'https:' + host.url : host.url;
+    emotes.set(e.name, base + '/2x.webp');         // webp (animado quando o emote é animado)
+  }
+  emoteNames = Array.from(emotes.keys());
+}
+
+async function loadSevenTvGlobal() {
+  try {
+    const r = await fetch('https://7tv.io/v3/emote-sets/global');
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    addSevenTvSet(await r.json());
+    console.log('[overlay] Emotes globais do 7TV carregados.');
+  } catch (e) {
+    console.warn('[overlay] Falha ao carregar emotes globais do 7TV:', e.message || e);
+  }
+}
+
+let sevenTvChannelFor = null;
+async function loadSevenTvChannel(twitchId) {
+  if (!twitchId || sevenTvChannelFor === twitchId) return;
+  sevenTvChannelFor = twitchId;
+  try {
+    const r = await fetch('https://7tv.io/v3/users/twitch/' + encodeURIComponent(twitchId));
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const j = await r.json();
+    addSevenTvSet(j.emote_set);                    // emotes do canal sobrescrevem os globais
+    console.log('[overlay] Emotes do canal no 7TV carregados.');
+  } catch (e) {
+    console.warn('[overlay] Falha ao carregar emotes do canal no 7TV:', e.message || e);
+    setTimeout(() => { sevenTvChannelFor = null; }, 60000);   // tenta de novo mais tarde
+  }
+}
+
+/* ---- Pop-ups ---- */
 function measureLabel(b) {
   b.labelW = b.label.offsetWidth;
   b.labelH = b.label.offsetHeight;
-  b.lastLX = NaN;                                 // força reposicionamento
+  b.labelDirty = true;                            // força reposicionamento
 }
 
-function showPopup(b, text) {
+// Posiciona o pop-up logo acima da bola (coordenadas de tela = coordenadas do mundo)
+function positionLabel(b) {
+  const lx = clamp(b.x, b.labelW / 2, W - b.labelW / 2);
+  const ly = Math.max(b.labelH, b.y - R * 1.05);
+  if (b.labelDirty || Math.abs(lx - b.lastLX) > 0.05 || Math.abs(ly - b.lastLY) > 0.05) {
+    b.label.style.transform = 'translate3d(' + lx.toFixed(1) + 'px,' + ly.toFixed(1) + 'px,0) translate(-50%,-100%)';
+    b.lastLX = lx; b.lastLY = ly; b.labelDirty = false;
+  }
+}
+
+function makeEmoteImg(b, url, name) {
+  const img = document.createElement('img');
+  img.className = 'emote';
+  img.alt = name;
+  img.decoding = 'async';
+  img.onload = () => { if (b.label) measureLabel(b); };
+  img.onerror = () => {                            // se a imagem falhar, mostra o nome do emote
+    img.replaceWith(document.createTextNode(name));
+    if (b.label) measureLabel(b);
+  };
+  img.src = url;
+  return img;
+}
+
+// Monta o conteúdo do balão: texto como textNode (seguro) + emotes como <img>
+function fillBubble(b, bubble, text, local) {
+  let buf = [], images = 0;
+  const flush = () => {
+    if (buf.length) { bubble.appendChild(document.createTextNode(buf.join(' '))); buf = []; }
+  };
+  for (const w of text.split(' ')) {
+    const url = (local && local.get(w)) || emotes.get(w);
+    if (url && images < 12) {
+      flush();
+      bubble.appendChild(makeEmoteImg(b, url, w));
+      images++;
+    } else {
+      buf.push(w);
+    }
+  }
+  flush();
+}
+
+function showPopup(b, text, local) {
   if (!b.label) {
     b.label = document.createElement('div');
     b.label.className = 'label';
     ui.appendChild(b.label);
   }
-  const clean = text.length > 100 ? text.slice(0, 99) + '…' : text;
+
+  let clean = text;
+  if (clean.length > 160) {
+    clean = clean.slice(0, 160);
+    const i = clean.lastIndexOf(' ');
+    if (i > 80) clean = clean.slice(0, i);
+    clean += '…';
+  }
 
   const bubble = document.createElement('div');
   bubble.className = 'bubble';
-  bubble.textContent = clean;                     // textContent: evita injeção de HTML
+  fillBubble(b, bubble, clean, local);
   b.label.appendChild(bubble);
   b.label.style.visibility = 'visible';
 
   while (b.label.children.length > 3) b.label.firstChild.remove();
   measureLabel(b);
+  positionLabel(b);                                // já nasce no lugar certo (sem piscar no canto)
 
   setTimeout(() => {
     bubble.classList.add('out');
@@ -430,23 +536,32 @@ function showPopup(b, text) {
 /* =====================================================================
  * 7. TRATAMENTO DAS MENSAGENS DO CHAT
  * ===================================================================== */
-const MOVE_RE = /^[wasd]+$/i;
+const MOVE_RE = /^[wasd\s,.]+$/i;   // aceita também "w a s d" e "w,a,s"
 
-function handleChat(user, rawText) {
-  const text = (rawText || '').trim();
+// Caracteres invisíveis que 7TV/FFZ/Chatterino adicionam ao repetir mensagens
+// (não inclui o ZWJ \u200D, usado em emojis compostos)
+const INVISIBLE_RE = /[\u00A0\u1680\u180E\u2000-\u200B\u200E\u200F\u202A-\u202F\u205F-\u2064\u2066-\u206F\u2800\u3000\u3164\u115F\u1160\u034F\uFEFF\u{E0000}-\u{E007F}]/gu;
+
+// localEmotes: Map(nome -> url) com emotes nativos da própria mensagem (Twitch)
+function handleChat(user, rawText, localEmotes) {
+  const text = (rawText || '').replace(INVISIBLE_RE, ' ').replace(/\s+/g, ' ').trim();
   if (!text) return;
   if (CONFIG.ignore.includes(user.name.toLowerCase())) return;
 
   const b = ensureBall(user);
   b.lastActive = performance.now();
 
-  if (MOVE_RE.test(text)) {
+  // Para detectar comando, também remove marcas invisíveis restantes (categorias Cf/Mn/Cc)
+  const cmdText = text.replace(/[\p{Cf}\p{Mn}\p{Cc}]/gu, '');
+
+  if (MOVE_RE.test(cmdText)) {
     // "wads" vira uma sequência: cima, esquerda, baixo, direita
-    for (const ch of text.toLowerCase()) {
+    for (const ch of cmdText.toLowerCase()) {
+      if ('wasd'.indexOf(ch) < 0) continue;
       if (b.queue.length < PHYS.maxQueue) b.queue.push(ch);
     }
   } else {
-    showPopup(b, text);
+    showPopup(b, text, localEmotes);
   }
 }
 
@@ -489,6 +604,21 @@ function parseTags(s) {
   return o;
 }
 
+// Emotes nativos da Twitch: tag "emotes" = "25:0-4,12-16/1902:6-10" (índices por caractere)
+function parseTwitchEmotes(tag, text) {
+  const out = new Map();
+  if (!tag) return out;
+  const chars = Array.from(text);
+  for (const part of tag.split('/')) {
+    const [id, ranges] = part.split(':');
+    if (!ranges || !/^\w+$/.test(id)) continue;
+    const [a, z] = ranges.split(',')[0].split('-').map(Number);
+    const name = chars.slice(a, z + 1).join('');
+    if (name) out.set(name, 'https://static-cdn.jtvnw.net/emoticons/v2/' + id + '/default/dark/2.0');
+  }
+  return out;
+}
+
 function startTwitch() {
   let retry = 1000;
 
@@ -517,6 +647,10 @@ function startTwitch() {
           if (!line) continue;
           if (line.startsWith('PING')) { ws.send('PONG :tmi.twitch.tv'); continue; }
 
+          // ROOMSTATE traz o id numérico do canal (usado para buscar emotes do 7TV)
+          const rs = line.match(/^@(\S+) :tmi\.twitch\.tv ROOMSTATE /);
+          if (rs) { loadSevenTvChannel(parseTags(rs[1])['room-id']); continue; }
+
           const m = line.match(/^@(\S+) :([^!]+)![^ ]+ PRIVMSG #\S+ :(.*)$/);
           if (!m) continue;
 
@@ -524,13 +658,15 @@ function startTwitch() {
           const login = m[2].toLowerCase();
           const name = (tags['display-name'] || m[2]).replace(/\\s/g, ' ');
           const text = m[3].replace(/^\u0001ACTION (.*)\u0001$/, '$1');
+          loadSevenTvChannel(tags['room-id']);
+          const localEmotes = parseTwitchEmotes(tags['emotes'], text);
 
           handleChat({
             id: 'tw:' + (tags['user-id'] || login),
             name,
             color: tags['color'] || null,
             resolveAvatar: () => twitchAvatar(login)
-          }, text);
+          }, text, localEmotes);
         }
       } catch (e) {
         console.warn('[overlay] Erro ao processar mensagem da Twitch:', e);
@@ -632,7 +768,11 @@ function startDemo() {
       for (let i = 0; i < n; i++) s += 'wasd'[Math.floor(Math.random() * 4)];
       handleChat(u, s);
     } else {
-      handleChat(u, phrases[Math.floor(Math.random() * phrases.length)]);
+      let msg = phrases[Math.floor(Math.random() * phrases.length)];
+      if (emoteNames.length && Math.random() < 0.5) {          // testa emotes do 7TV
+        msg += ' ' + emoteNames[Math.floor(Math.random() * emoteNames.length)];
+      }
+      handleChat(u, msg);
     }
     setTimeout(send, 250 + Math.random() * 700);
   };
@@ -753,15 +893,8 @@ function frame(now) {
       m.rotation.y += (ty - m.rotation.y) * 0.15;
     }
 
-    // Pop-up acompanha a bola (coordenadas de tela = coordenadas do mundo)
-    if (b.label && b.label.style.visibility === 'visible') {
-      const lx = clamp(b.x, b.labelW / 2, W - b.labelW / 2);
-      const ly = Math.max(b.labelH, b.y - R * 1.05);
-      if (Math.abs(lx - b.lastLX) > 0.05 || Math.abs(ly - b.lastLY) > 0.05) {
-        b.label.style.transform = 'translate3d(' + lx.toFixed(1) + 'px,' + ly.toFixed(1) + 'px,0) translate(-50%,-100%)';
-        b.lastLX = lx; b.lastLY = ly;
-      }
-    }
+    // Pop-up acompanha a bola
+    if (b.label && b.label.style.visibility === 'visible') positionLabel(b);
   }
 
   renderer.render(scene, camera);
@@ -772,6 +905,7 @@ function frame(now) {
  * ===================================================================== */
 resize();
 requestAnimationFrame(frame);
+loadSevenTvGlobal();
 
 try {
   if (CONFIG.demo) startDemo();
